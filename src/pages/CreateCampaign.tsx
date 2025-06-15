@@ -1,0 +1,294 @@
+
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+
+interface Prize {
+  id: string;
+  name: string;
+  percentage: number;
+}
+
+const CreateCampaign = () => {
+  const [campaignName, setCampaignName] = useState('');
+  const [prizes, setPrizes] = useState<Prize[]>([
+    { id: '1', name: 'Desconto 10%', percentage: 30 },
+    { id: '2', name: 'Desconto 20%', percentage: 20 },
+    { id: '3', name: 'Brinde Grátis', percentage: 15 },
+    { id: '4', name: 'Tente Novamente', percentage: 35 }
+  ]);
+  const [collectDataBefore, setCollectDataBefore] = useState(true);
+  const [thankYouMessage, setThankYouMessage] = useState('Obrigado por participar da nossa promoção!');
+  const [couponCode, setCouponCode] = useState('GIRO10');
+  const [wheelColor, setWheelColor] = useState('#007BFF');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const addPrize = () => {
+    const newPrize: Prize = {
+      id: Date.now().toString(),
+      name: '',
+      percentage: 0
+    };
+    setPrizes([...prizes, newPrize]);
+  };
+
+  const removePrize = (id: string) => {
+    setPrizes(prizes.filter(prize => prize.id !== id));
+  };
+
+  const updatePrize = (id: string, field: keyof Prize, value: string | number) => {
+    setPrizes(prizes.map(prize => 
+      prize.id === id ? { ...prize, [field]: value } : prize
+    ));
+  };
+
+  const getTotalPercentage = () => {
+    return prizes.reduce((total, prize) => total + prize.percentage, 0);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    // Validações
+    if (getTotalPercentage() !== 100) {
+      toast({
+        title: 'Erro na configuração',
+        description: 'A soma das porcentagens deve ser exatamente 100%',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (prizes.some(prize => !prize.name.trim())) {
+      toast({
+        title: 'Erro na configuração',
+        description: 'Todos os prêmios devem ter um nome',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const newCampaign = {
+        id: Date.now().toString(),
+        name: campaignName,
+        prizes: prizes.length,
+        participants: 0,
+        status: 'active' as const,
+        createdAt: new Date().toISOString(),
+        config: {
+          prizes,
+          collectDataBefore,
+          thankYouMessage,
+          couponCode,
+          wheelColor
+        }
+      };
+
+      // Salvar no localStorage (em produção seria uma API)
+      const existingCampaigns = localStorage.getItem('fidelizagiro_campaigns');
+      const campaigns = existingCampaigns ? JSON.parse(existingCampaigns) : [];
+      campaigns.push(newCampaign);
+      localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(campaigns));
+
+      toast({
+        title: 'Campanha criada com sucesso!',
+        description: 'Sua campanha está pronta para receber participantes',
+      });
+
+      navigate('/dashboard');
+    } catch (error) {
+      toast({
+        title: 'Erro ao criar campanha',
+        description: 'Tente novamente em alguns instantes',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/dashboard')}
+            className="mb-6"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar ao Dashboard
+          </Button>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl">Criar Nova Campanha</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Nome da Campanha */}
+                <div className="space-y-2">
+                  <Label htmlFor="campaignName">Nome da Campanha</Label>
+                  <Input
+                    id="campaignName"
+                    placeholder="Ex: Promoção de Verão 2024"
+                    value={campaignName}
+                    onChange={(e) => setCampaignName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Prêmios */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Prêmios da Roda</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addPrize}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Adicionar Prêmio
+                    </Button>
+                  </div>
+                  
+                  {prizes.map((prize, index) => (
+                    <div key={prize.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <Input
+                          placeholder="Nome do prêmio"
+                          value={prize.name}
+                          onChange={(e) => updatePrize(prize.id, 'name', e.target.value)}
+                        />
+                      </div>
+                      <div className="w-32">
+                        <Input
+                          type="number"
+                          placeholder="% Chance"
+                          value={prize.percentage}
+                          onChange={(e) => updatePrize(prize.id, 'percentage', parseInt(e.target.value) || 0)}
+                          min="0"
+                          max="100"
+                        />
+                      </div>
+                      {prizes.length > 1 && (
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => removePrize(prize.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  
+                  <div className="text-sm text-gray-600">
+                    Total: {getTotalPercentage()}% 
+                    {getTotalPercentage() !== 100 && (
+                      <span className="text-red-500 ml-2">
+                        (Deve somar 100%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Configurações */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="collectDataBefore"
+                        checked={collectDataBefore}
+                        onCheckedChange={setCollectDataBefore}
+                      />
+                      <Label htmlFor="collectDataBefore">
+                        Coletar dados antes do giro
+                      </Label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="couponCode">Código do Cupom</Label>
+                      <Input
+                        id="couponCode"
+                        placeholder="Ex: GIRO10"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="wheelColor">Cor da Roda</Label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          id="wheelColor"
+                          value={wheelColor}
+                          onChange={(e) => setWheelColor(e.target.value)}
+                          className="w-12 h-10 rounded border"
+                        />
+                        <Input
+                          value={wheelColor}
+                          onChange={(e) => setWheelColor(e.target.value)}
+                          placeholder="#007BFF"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mensagem de Agradecimento */}
+                <div className="space-y-2">
+                  <Label htmlFor="thankYouMessage">Mensagem de Agradecimento</Label>
+                  <Textarea
+                    id="thankYouMessage"
+                    placeholder="Mensagem que aparecerá após o giro"
+                    value={thankYouMessage}
+                    onChange={(e) => setThankYouMessage(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                {/* Botões */}
+                <div className="flex items-center justify-end space-x-4">
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={() => navigate('/dashboard')}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    className="bg-brand-blue hover:bg-blue-600"
+                    disabled={isLoading || getTotalPercentage() !== 100}
+                  >
+                    {isLoading ? 'Criando...' : 'Criar Campanha'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CreateCampaign;

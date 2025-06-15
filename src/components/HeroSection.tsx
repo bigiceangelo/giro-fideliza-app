@@ -1,4 +1,5 @@
 
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Play } from 'lucide-react';
 
@@ -33,22 +34,26 @@ const HeroSection = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12 animate-slide-up" style={{animationDelay: '0.4s'}}>
-            <Button 
-              size="lg" 
-              className="bg-brand-blue hover:bg-blue-600 text-white px-8 py-4 text-lg font-semibold rounded-full transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
-            >
-              Começar Grátis
-              <ArrowRight className="ml-2" size={20} />
-            </Button>
+            <Link to="/register">
+              <Button 
+                size="lg" 
+                className="bg-brand-blue hover:bg-blue-600 text-white px-8 py-4 text-lg font-semibold rounded-full transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+              >
+                Começar Grátis
+                <ArrowRight className="ml-2" size={20} />
+              </Button>
+            </Link>
             
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="border-2 border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white px-8 py-4 text-lg font-semibold rounded-full transition-all duration-300 hover:scale-105"
-            >
-              <Play className="mr-2" size={20} />
-              Ver Demo
-            </Button>
+            <Link to="/campaign/demo">
+              <Button 
+                variant="outline" 
+                size="lg" 
+                className="border-2 border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white px-8 py-4 text-lg font-semibold rounded-full transition-all duration-300 hover:scale-105"
+              >
+                <Play className="mr-2" size={20} />
+                Ver Demo
+              </Button>
+            </Link>
           </div>
 
           {/* Spinning Wheel Preview */}

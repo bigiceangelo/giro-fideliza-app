@@ -1,4 +1,5 @@
 
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Sparkles } from 'lucide-react';
 
@@ -49,13 +50,15 @@ const CTASection = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button 
-              size="lg" 
-              className="bg-white text-brand-blue hover:bg-gray-100 px-8 py-4 text-lg font-semibold rounded-full transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
-            >
-              Começar Gratuitamente
-              <ArrowRight className="ml-2" size={20} />
-            </Button>
+            <Link to="/register">
+              <Button 
+                size="lg" 
+                className="bg-white text-brand-blue hover:bg-gray-100 px-8 py-4 text-lg font-semibold rounded-full transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+              >
+                Começar Gratuitamente
+                <ArrowRight className="ml-2" size={20} />
+              </Button>
+            </Link>
             
             <Button 
               variant="outline" 
