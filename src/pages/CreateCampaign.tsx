@@ -15,19 +15,19 @@ interface Prize {
   id: string;
   name: string;
   percentage: number;
+  couponCode: string;
 }
 
 const CreateCampaign = () => {
   const [campaignName, setCampaignName] = useState('');
   const [prizes, setPrizes] = useState<Prize[]>([
-    { id: '1', name: 'Desconto 10%', percentage: 30 },
-    { id: '2', name: 'Desconto 20%', percentage: 20 },
-    { id: '3', name: 'Brinde Grátis', percentage: 15 },
-    { id: '4', name: 'Tente Novamente', percentage: 35 }
+    { id: '1', name: 'Desconto 10%', percentage: 30, couponCode: 'DESC10' },
+    { id: '2', name: 'Desconto 20%', percentage: 20, couponCode: 'DESC20' },
+    { id: '3', name: 'Brinde Grátis', percentage: 15, couponCode: 'BRINDE' },
+    { id: '4', name: 'Tente Novamente', percentage: 35, couponCode: '' }
   ]);
   const [collectDataBefore, setCollectDataBefore] = useState(true);
   const [thankYouMessage, setThankYouMessage] = useState('Obrigado por participar da nossa promoção!');
-  const [couponCode, setCouponCode] = useState('GIRO10');
   const [wheelColor, setWheelColor] = useState('#007BFF');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -38,7 +38,8 @@ const CreateCampaign = () => {
     const newPrize: Prize = {
       id: Date.now().toString(),
       name: '',
-      percentage: 0
+      percentage: 0,
+      couponCode: ''
     };
     setPrizes([...prizes, newPrize]);
   };
@@ -96,7 +97,6 @@ const CreateCampaign = () => {
           prizes,
           collectDataBefore,
           thankYouMessage,
-          couponCode,
           wheelColor
         }
       };
@@ -166,15 +166,17 @@ const CreateCampaign = () => {
                   </div>
                   
                   {prizes.map((prize, index) => (
-                    <div key={prize.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                      <div className="flex-1">
+                    <div key={prize.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
+                      <div>
+                        <Label className="text-sm text-gray-600">Nome do Prêmio</Label>
                         <Input
                           placeholder="Nome do prêmio"
                           value={prize.name}
                           onChange={(e) => updatePrize(prize.id, 'name', e.target.value)}
                         />
                       </div>
-                      <div className="w-32">
+                      <div>
+                        <Label className="text-sm text-gray-600">% Chance</Label>
                         <Input
                           type="number"
                           placeholder="% Chance"
@@ -184,16 +186,28 @@ const CreateCampaign = () => {
                           max="100"
                         />
                       </div>
-                      {prizes.length > 1 && (
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => removePrize(prize.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <div>
+                        <Label className="text-sm text-gray-600">Código do Cupom</Label>
+                        <Input
+                          placeholder="Ex: DESC10"
+                          value={prize.couponCode}
+                          onChange={(e) => updatePrize(prize.id, 'couponCode', e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        {prizes.length > 1 && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => removePrize(prize.id)}
+                            className="w-full"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Remover
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                   
@@ -219,16 +233,6 @@ const CreateCampaign = () => {
                       <Label htmlFor="collectDataBefore">
                         Coletar dados antes do giro
                       </Label>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="couponCode">Código do Cupom</Label>
-                      <Input
-                        id="couponCode"
-                        placeholder="Ex: GIRO10"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                      />
                     </div>
                   </div>
 

@@ -12,6 +12,7 @@ interface Prize {
   id: string;
   name: string;
   percentage: number;
+  couponCode: string;
 }
 
 interface CampaignData {
@@ -21,7 +22,6 @@ interface CampaignData {
     prizes: Prize[];
     collectDataBefore: boolean;
     thankYouMessage: string;
-    couponCode: string;
     wheelColor: string;
   };
 }
@@ -82,6 +82,7 @@ const Campaign = () => {
         campaignId: id,
         ...participantData,
         prize: selectedPrize.name,
+        couponCode: selectedPrize.couponCode,
         timestamp: new Date().toISOString()
       };
       
@@ -242,10 +243,10 @@ const Campaign = () => {
                   <p className="text-2xl font-bold">{wonPrize.name}</p>
                 </div>
 
-                {campaign.config.couponCode && (
+                {wonPrize.couponCode && (
                   <div className="bg-gray-100 p-4 rounded-lg">
                     <p className="text-sm text-gray-600 mb-2">Seu cupom:</p>
-                    <p className="text-lg font-bold text-brand-blue">{campaign.config.couponCode}</p>
+                    <p className="text-lg font-bold text-brand-blue">{wonPrize.couponCode}</p>
                   </div>
                 )}
 
