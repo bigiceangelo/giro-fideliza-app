@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ const Campaign = () => {
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [showForm, setShowForm] = useState(true);
+  const [isDataSaved, setIsDataSaved] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,23 +55,60 @@ const Campaign = () => {
     }
   }, [id]);
 
+  const saveParticipantData = () => {
+    if (!isDataSaved && participantData.name && participantData.email && participantData.phone) {
+      const participation = {
+        campaignId: id,
+        ...participantData,
+        timestamp: new Date().toISOString(),
+        hasSpun: false
+      };
+      
+      const existingParticipations = localStorage.getItem('fidelizagiro_participations');
+      const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
+      participations.push(participation);
+      localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
+      setIsDataSaved(true);
+      
+      console.log('Dados do participante salvos:', participation);
+    }
+  };
+
   const handlePrizeWon = (prize: Prize) => {
     setWonPrize(prize);
     setHasSpun(true);
     setIsSpinning(false);
     
-    // Salvar participação
-    const participation = {
-      campaignId: id,
-      ...participantData,
-      prize: prize.name,
-      couponCode: prize.couponCode,
-      timestamp: new Date().toISOString()
-    };
-    
+    // Atualizar participação com o prêmio ganho
     const existingParticipations = localStorage.getItem('fidelizagiro_participations');
     const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-    participations.push(participation);
+    
+    // Encontrar a participação atual e atualizá-la
+    const currentParticipationIndex = participations.findIndex(
+      (p: any) => p.campaignId === id && p.email === participantData.email && !p.hasSpun
+    );
+    
+    if (currentParticipationIndex >= 0) {
+      participations[currentParticipationIndex] = {
+        ...participations[currentParticipationIndex],
+        prize: prize.name,
+        couponCode: prize.couponCode,
+        hasSpun: true,
+        spinTimestamp: new Date().toISOString()
+      };
+    } else {
+      // Se não encontrou, criar nova participação
+      participations.push({
+        campaignId: id,
+        ...participantData,
+        prize: prize.name,
+        couponCode: prize.couponCode,
+        hasSpun: true,
+        timestamp: new Date().toISOString(),
+        spinTimestamp: new Date().toISOString()
+      });
+    }
+    
     localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
 
     toast({
@@ -84,8 +123,26 @@ const Campaign = () => {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validar se todos os campos estão preenchidos
+    if (!participantData.name || !participantData.email || !participantData.phone) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, preencha todos os campos.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Salvar dados do participante
+    saveParticipantData();
+    
     if (campaign?.config.collectDataBefore) {
       setShowForm(false);
+      toast({
+        title: 'Dados salvos!',
+        description: 'Agora você pode girar a roda da fortuna!',
+      });
     } else {
       startSpin();
     }
@@ -96,6 +153,7 @@ const Campaign = () => {
     setWonPrize(null);
     setParticipantData({ name: '', email: '', phone: '' });
     setShowForm(campaign?.config.collectDataBefore || false);
+    setIsDataSaved(false);
   };
 
   const shareResult = () => {
@@ -226,8 +284,8 @@ const Campaign = () => {
             )}
 
             {/* Formulário pós-giro */}
-            {hasSpun && !campaign.config.collectDataBefore && (
-              <form className="space-y-4">
+            {hasSpun && !campaign.config.collectDataBefore && !isDataSaved && (
+              <form onSubmit={handleFormSubmit} className="space-y-4">
                 <p className="text-center text-sm text-gray-600 mb-4">
                   Deixe seus dados para receber seu prêmio:
                 </p>
@@ -238,6 +296,7 @@ const Campaign = () => {
                     placeholder="Seu nome completo"
                     value={participantData.name}
                     onChange={(e) => setParticipantData({...participantData, name: e.target.value})}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -248,6 +307,7 @@ const Campaign = () => {
                     placeholder="seu@email.com"
                     value={participantData.email}
                     onChange={(e) => setParticipantData({...participantData, email: e.target.value})}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -257,6 +317,7 @@ const Campaign = () => {
                     placeholder="(11) 99999-9999"
                     value={participantData.phone}
                     onChange={(e) => setParticipantData({...participantData, phone: e.target.value})}
+                    required
                   />
                 </div>
                 <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">

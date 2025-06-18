@@ -41,17 +41,19 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
     // O ponteiro está no topo (12h), então calculamos para que aponte para o prêmio
-    const targetAngle = (selectedIndex * sectionAngle) + (sectionAngle / 2);
-    // Múltiplas voltas completas + rotação final para o prêmio
-    const fullSpins = 5 + Math.random() * 3; // Entre 5 e 8 voltas completas
-    const finalRotation = rotation + (fullSpins * 360) + (360 - targetAngle);
+    const targetAngle = selectedIndex * sectionAngle + (sectionAngle / 2);
+    // Múltiplas voltas completas + ajuste fino para parar no prêmio correto
+    const minSpins = 8;
+    const maxSpins = 12;
+    const spins = minSpins + Math.random() * (maxSpins - minSpins);
+    const finalRotation = rotation + (spins * 360) + (360 - targetAngle);
 
     setRotation(finalRotation);
 
-    // Chamar callback após a animação (6 segundos para movimento mais realista)
+    // Chamar callback após a animação
     setTimeout(() => {
       onSpin(selectedPrize);
-    }, 6000);
+    }, 4000);
   };
 
   const sectionAngle = 360 / prizes.length;
@@ -59,11 +61,6 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
   return (
     <div className="flex flex-col items-center space-y-6">
       <div className="relative w-96 h-96">
-        {/* Ponteiro no centro apontando para cima */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 z-20">
-          <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-red-600 drop-shadow-lg"></div>
-        </div>
-
         {/* Roda */}
         <div 
           ref={wheelRef}
@@ -71,7 +68,7 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
           style={{ 
             transform: `rotate(${rotation}deg)`,
             background: 'white',
-            transition: isSpinning ? 'transform 6s cubic-bezier(0.23, 1, 0.32, 1)' : 'none'
+            transition: isSpinning ? 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)' : 'none'
           }}
         >
           {prizes.map((prize, index) => {
@@ -144,11 +141,15 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
               </div>
             );
           })}
+        </div>
 
-          {/* Centro da roda */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-20 h-20 bg-white rounded-full border-4 border-gray-400 flex items-center justify-center shadow-lg z-10">
-              <div className="text-3xl">🎁</div>
+        {/* Centro da roda com ícone do presente e ponteiro */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative w-20 h-20 bg-white rounded-full border-4 border-gray-400 flex items-center justify-center shadow-lg z-20">
+            <div className="text-3xl">🎁</div>
+            {/* Ponteiro vermelho apontando para cima */}
+            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
+              <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-b-[24px] border-l-transparent border-r-transparent border-b-red-600 drop-shadow-lg"></div>
             </div>
           </div>
         </div>
