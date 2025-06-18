@@ -40,74 +40,105 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
 
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
-    const targetAngle = (selectedIndex * sectionAngle) + (sectionAngle / 2);
-    const spinAmount = 360 * 5; // 5 voltas completas
-    const finalRotation = rotation + spinAmount + (360 - targetAngle);
+    // O ponteiro está no topo (12h), então ajustamos para que aponte para baixo
+    const targetAngle = (selectedIndex * sectionAngle) + (sectionAngle / 2) + 180;
+    const spinAmount = 360 * 8 + Math.random() * 360; // 8+ voltas completas
+    const finalRotation = rotation + spinAmount + (360 - (targetAngle % 360));
 
     setRotation(finalRotation);
 
-    // Chamar callback após a animação
+    // Chamar callback após a animação (4 segundos para movimento mais suave)
     setTimeout(() => {
       onSpin(selectedPrize);
-    }, 3000);
+    }, 4000);
   };
 
   const sectionAngle = 360 / prizes.length;
 
   return (
     <div className="flex flex-col items-center space-y-6">
-      <div className="relative w-80 h-80">
-        {/* Ponteiro */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 z-10">
-          <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-yellow-500 drop-shadow-lg"></div>
+      <div className="relative w-96 h-96">
+        {/* Ponteiro apontando para baixo */}
+        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-2 z-10">
+          <div className="w-0 h-0 border-l-[20px] border-r-[20px] border-t-[40px] border-l-transparent border-r-transparent border-t-red-600 drop-shadow-lg"></div>
         </div>
 
         {/* Roda */}
         <div 
           ref={wheelRef}
-          className={`relative w-80 h-80 rounded-full border-8 border-gray-300 shadow-2xl transition-transform duration-3000 ease-out`}
+          className="relative w-96 h-96 rounded-full border-8 border-white shadow-2xl transition-transform ease-out"
           style={{ 
             transform: `rotate(${rotation}deg)`,
-            background: 'white'
+            background: 'white',
+            transitionDuration: isSpinning ? '4s' : '0s',
+            transitionTimingFunction: 'cubic-bezier(0.17, 0.67, 0.12, 0.99)'
           }}
         >
           {prizes.map((prize, index) => {
             const startAngle = index * sectionAngle;
             const endAngle = (index + 1) * sectionAngle;
             
-            // Cores alternadas para melhor visibilidade
+            // Cores mais vibrantes e contrastantes
             const colors = [
               '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
-              '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+              '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+              '#FF8A80', '#80CBC4', '#81C784', '#FFB74D'
             ];
             const backgroundColor = colors[index % colors.length];
 
+            // Calcular pontos para criar fatias circulares perfeitas
+            const centerX = 50;
+            const centerY = 50;
+            const radius = 50;
+            
+            const startAngleRad = (startAngle - 90) * Math.PI / 180;
+            const endAngleRad = (endAngle - 90) * Math.PI / 180;
+            
+            const x1 = centerX + radius * Math.cos(startAngleRad);
+            const y1 = centerY + radius * Math.sin(startAngleRad);
+            const x2 = centerX + radius * Math.cos(endAngleRad);
+            const y2 = centerY + radius * Math.sin(endAngleRad);
+            
+            const largeArcFlag = sectionAngle > 180 ? 1 : 0;
+            
+            const pathData = [
+              `M ${centerX} ${centerY}`,
+              `L ${x1} ${y1}`,
+              `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+              'Z'
+            ].join(' ');
+
             return (
-              <div
-                key={prize.id}
-                className="absolute w-full h-full"
-                style={{
-                  clipPath: `polygon(50% 50%, ${50 + 50 * Math.cos((startAngle - 90) * Math.PI / 180)}% ${50 + 50 * Math.sin((startAngle - 90) * Math.PI / 180)}%, ${50 + 50 * Math.cos((endAngle - 90) * Math.PI / 180)}% ${50 + 50 * Math.sin((endAngle - 90) * Math.PI / 180)}%)`,
-                  backgroundColor
-                }}
-              >
+              <div key={prize.id} className="absolute inset-0">
+                <svg className="w-full h-full" viewBox="0 0 100 100">
+                  <path
+                    d={pathData}
+                    fill={backgroundColor}
+                    stroke="white"
+                    strokeWidth="0.5"
+                  />
+                </svg>
+                
+                {/* Texto do prêmio */}
                 <div 
-                  className="absolute text-center font-bold text-white text-sm leading-tight"
+                  className="absolute text-center font-bold text-white text-sm leading-tight pointer-events-none"
                   style={{
                     top: '50%',
                     left: '50%',
-                    transform: `translate(-50%, -50%) rotate(${startAngle + sectionAngle / 2}deg) translateY(-80px)`,
-                    width: '120px'
+                    transform: `translate(-50%, -50%) rotate(${startAngle + sectionAngle / 2}deg) translateY(-120px)`,
+                    width: '140px'
                   }}
                 >
                   <div 
                     style={{ 
                       transform: `rotate(${-(startAngle + sectionAngle / 2)}deg)`,
-                      textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
+                      textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
                     }}
                   >
-                    {prize.name.length > 15 ? prize.name.substring(0, 15) + '...' : prize.name}
-                    <div className="text-xs mt-1">{prize.percentage}%</div>
+                    <div className="text-xs font-semibold">
+                      {prize.name.length > 18 ? prize.name.substring(0, 18) + '...' : prize.name}
+                    </div>
+                    <div className="text-xs mt-1 opacity-90">{prize.percentage}%</div>
                   </div>
                 </div>
               </div>
@@ -116,8 +147,8 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
 
           {/* Centro da roda */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-16 h-16 bg-white rounded-full border-4 border-gray-400 flex items-center justify-center shadow-lg">
-              <div className="text-2xl">🎁</div>
+            <div className="w-20 h-20 bg-white rounded-full border-4 border-gray-400 flex items-center justify-center shadow-lg z-10">
+              <div className="text-3xl">🎁</div>
             </div>
           </div>
         </div>
