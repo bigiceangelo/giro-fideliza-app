@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Share2, RotateCcw } from 'lucide-react';
+import SpinWheel from '@/components/SpinWheel';
 
 interface Prize {
   id: string;
@@ -53,49 +53,33 @@ const Campaign = () => {
     }
   }, [id]);
 
-  const spinWheel = () => {
-    if (!campaign) return;
-
-    setIsSpinning(true);
+  const handlePrizeWon = (prize: Prize) => {
+    setWonPrize(prize);
+    setHasSpun(true);
+    setIsSpinning(false);
     
-    // Simular giro da roda
-    setTimeout(() => {
-      // Escolher prêmio baseado nas porcentagens
-      const random = Math.random() * 100;
-      let accumulator = 0;
-      let selectedPrize = campaign.config.prizes[0];
+    // Salvar participação
+    const participation = {
+      campaignId: id,
+      ...participantData,
+      prize: prize.name,
+      couponCode: prize.couponCode,
+      timestamp: new Date().toISOString()
+    };
+    
+    const existingParticipations = localStorage.getItem('fidelizagiro_participations');
+    const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
+    participations.push(participation);
+    localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
 
-      for (const prize of campaign.config.prizes) {
-        accumulator += prize.percentage;
-        if (random <= accumulator) {
-          selectedPrize = prize;
-          break;
-        }
-      }
+    toast({
+      title: 'Parabéns! 🎉',
+      description: `Você ganhou: ${prize.name}`,
+    });
+  };
 
-      setWonPrize(selectedPrize);
-      setHasSpun(true);
-      setIsSpinning(false);
-      
-      // Salvar participação
-      const participation = {
-        campaignId: id,
-        ...participantData,
-        prize: selectedPrize.name,
-        couponCode: selectedPrize.couponCode,
-        timestamp: new Date().toISOString()
-      };
-      
-      const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-      const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-      participations.push(participation);
-      localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-
-      toast({
-        title: 'Parabéns! 🎉',
-        description: `Você ganhou: ${selectedPrize.name}`,
-      });
-    }, 3000);
+  const startSpin = () => {
+    setIsSpinning(true);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -103,7 +87,7 @@ const Campaign = () => {
     if (campaign?.config.collectDataBefore) {
       setShowForm(false);
     } else {
-      spinWheel();
+      startSpin();
     }
   };
 
@@ -143,7 +127,7 @@ const Campaign = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-lime-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-lg">
         <Card className="shadow-xl border-0">
           <CardHeader className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-4">
@@ -199,37 +183,13 @@ const Campaign = () => {
 
             {/* Roda da Fortuna */}
             {!showForm && !hasSpun && (
-              <div className="text-center space-y-6">
-                <div className="relative mx-auto w-48 h-48">
-                  <div 
-                    className={`absolute inset-0 rounded-full ${isSpinning ? 'animate-spin-wheel' : ''}`}
-                    style={{ 
-                      background: `conic-gradient(${campaign.config.prizes.map((prize, index) => 
-                        `${campaign.config.wheelColor} ${index * (360 / campaign.config.prizes.length)}deg ${(index + 1) * (360 / campaign.config.prizes.length)}deg`
-                      ).join(', ')})` 
-                    }}
-                  >
-                    <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-2xl mb-2">🎁</div>
-                        <div className="text-sm font-bold text-gray-800">Boa Sorte!</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Ponteiro */}
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2">
-                    <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[20px] border-l-transparent border-r-transparent border-b-brand-gold"></div>
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={spinWheel} 
-                  disabled={isSpinning}
-                  className="w-full bg-brand-blue hover:bg-blue-600"
-                >
-                  {isSpinning ? 'Girando...' : 'Girar a Roda!'}
-                </Button>
+              <div className="text-center">
+                <SpinWheel
+                  prizes={campaign.config.prizes}
+                  onSpin={handlePrizeWon}
+                  isSpinning={isSpinning}
+                  wheelColor={campaign.config.wheelColor}
+                />
               </div>
             )}
 

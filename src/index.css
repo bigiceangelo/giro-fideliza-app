@@ -109,4 +109,8 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  .duration-3000 {
+    transition-duration: 3000ms;
+  }
 }
