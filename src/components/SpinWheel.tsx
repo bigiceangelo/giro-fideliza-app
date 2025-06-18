@@ -43,22 +43,26 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
     
-    // Adicionar variação aleatória pequena dentro da seção para parecer natural
-    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.3);
+    // O ponteiro está no topo (0°) apontando para baixo
+    // Queremos que o centro do prêmio sorteado fique exatamente sob o ponteiro
     
-    // O ponteiro está no topo apontando para baixo (posição 0°)
-    // Cada prêmio está em uma posição específica
-    // O primeiro prêmio (index 0) deve ficar em 0°, o segundo em sectionAngle°, etc.
-    const targetAngle = selectedIndex * sectionAngle + randomOffset;
+    // Posição do centro de cada seção (em graus)
+    const prizeCenter = selectedIndex * sectionAngle + (sectionAngle / 2);
     
-    // Múltiplas voltas completas (entre 5-7 voltas)
+    // Pequena variação aleatória para parecer natural
+    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.1);
+    
+    // Ângulo final onde queremos parar (topo = 0°)
+    const targetAngle = prizeCenter + randomOffset;
+    
+    // Múltiplas voltas completas
     const minSpins = 5;
     const maxSpins = 7;
     const spins = minSpins + Math.random() * (maxSpins - minSpins);
     const totalSpinsDegrees = spins * 360;
     
-    // Rotação final: voltas completas + ajuste para parar no prêmio correto
-    // Subtraímos targetAngle porque queremos que o prêmio venha "para" o ponteiro
+    // Para parar no prêmio correto, giramos até que esse prêmio esteja no topo
+    // Como giramos no sentido horário, subtraímos o ângulo do prêmio
     const totalRotation = totalSpinsDegrees - targetAngle;
     setFinalRotation(totalRotation);
 
@@ -100,12 +104,14 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
             const backgroundColor = colors[index % colors.length];
 
             // Calcular pontos para criar fatias circulares perfeitas
+            // Começar do topo (12h) e ir no sentido horário
             const centerX = 50;
             const centerY = 50;
             const radius = 50;
             
-            const startAngleRad = (startAngle - 90) * Math.PI / 180;
-            const endAngleRad = (endAngle - 90) * Math.PI / 180;
+            // Ajustar para que o primeiro prêmio comece no topo (0°)
+            const startAngleRad = (startAngle) * Math.PI / 180;
+            const endAngleRad = (endAngle) * Math.PI / 180;
             
             const x1 = centerX + radius * Math.cos(startAngleRad);
             const y1 = centerY + radius * Math.sin(startAngleRad);
