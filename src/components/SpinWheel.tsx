@@ -149,25 +149,27 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
                 
                 {/* Texto do prêmio */}
                 <div 
-                  className="absolute pointer-events-none text-center"
+                  className="absolute pointer-events-none text-center z-10"
                   style={{
                     top: '50%',
                     left: '50%',
-                    transform: `translate(-50%, -50%) rotate(${textAngle}deg) translateY(-60px)`,
-                    width: '120px'
+                    transform: `translate(-50%, -50%) rotate(${textAngle}deg) translateY(-25px)`,
+                    width: '100px'
                   }}
                 >
                   <div 
-                    className="text-white font-bold"
+                    className="text-white font-bold px-2 py-1"
                     style={{ 
                       transform: `rotate(${-textAngle}deg)`,
-                      textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                      fontSize: '12px',
-                      lineHeight: '1.2'
+                      textShadow: '2px 2px 4px rgba(0,0,0,0.9)',
+                      fontSize: '11px',
+                      lineHeight: '1.1',
+                      background: 'rgba(0,0,0,0.3)',
+                      borderRadius: '4px'
                     }}
                   >
-                    <div className="font-bold">
-                      {prize.name.length > 12 ? prize.name.substring(0, 12) + '...' : prize.name}
+                    <div className="font-bold leading-tight">
+                      {prize.name.length > 10 ? prize.name.substring(0, 10) + '...' : prize.name}
                     </div>
                     <div className="opacity-90 mt-1 text-xs">{prize.percentage}%</div>
                   </div>
