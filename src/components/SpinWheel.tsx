@@ -144,7 +144,7 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
                   />
                 </svg>
                 
-                {/* Texto do prêmio - método baseado na HeroSection */}
+                {/* Texto do prêmio - limpo sem % e sem fundo */}
                 <div 
                   className="absolute text-center font-bold text-white text-sm leading-tight pointer-events-none"
                   style={{
@@ -158,16 +158,12 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
                     style={{ 
                       transform: `rotate(${-(startAngle + sectionAngle / 2 + 90)}deg)`,
                       textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                      background: 'rgba(0,0,0,0.6)',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '12px'
+                      fontSize: '14px'
                     }}
                   >
-                    <div className="text-xs font-semibold">
+                    <div className="text-sm font-semibold">
                       {prize.name.length > 15 ? prize.name.substring(0, 15) + '...' : prize.name}
                     </div>
-                    <div className="text-xs mt-1 opacity-90">{prize.percentage}%</div>
                   </div>
                 </div>
               </div>
