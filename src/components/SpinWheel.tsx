@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -40,17 +39,25 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
 
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
-    // O ponteiro está no topo (12h), então calculamos para que aponte para o prêmio
-    const targetAngle = selectedIndex * sectionAngle + (sectionAngle / 2);
-    // Múltiplas voltas completas + ajuste fino para parar no prêmio correto
-    const minSpins = 8;
-    const maxSpins = 12;
+    
+    // Adicionar variação aleatória dentro da seção para parecer mais natural
+    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.8);
+    
+    // O ponteiro está no topo, então calculamos o ângulo necessário
+    // Para que o prêmio fique embaixo do ponteiro
+    const targetAngle = selectedIndex * sectionAngle + (sectionAngle / 2) + randomOffset;
+    
+    // Múltiplas voltas completas para criar suspense
+    const minSpins = 5;
+    const maxSpins = 8;
     const spins = minSpins + Math.random() * (maxSpins - minSpins);
+    
+    // Calcular rotação final (rotação atual + voltas + posição do prêmio)
     const finalRotation = rotation + (spins * 360) + (360 - targetAngle);
 
     setRotation(finalRotation);
 
-    // Chamar callback após a animação
+    // Chamar callback após a animação (4 segundos)
     setTimeout(() => {
       onSpin(selectedPrize);
     }, 4000);
@@ -68,7 +75,7 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
           style={{ 
             transform: `rotate(${rotation}deg)`,
             background: 'white',
-            transition: isSpinning ? 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)' : 'none'
+            transition: isSpinning ? 'transform 4s cubic-bezier(0.23, 1, 0.32, 1)' : 'none'
           }}
         >
           {prizes.map((prize, index) => {
