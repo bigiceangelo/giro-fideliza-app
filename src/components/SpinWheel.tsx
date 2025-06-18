@@ -43,17 +43,20 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
     
+    // DEBUG: Vamos logar qual prêmio foi sorteado
+    console.log('Prêmio sorteado:', selectedPrize.name, 'Index:', selectedIndex);
+    
     // O ponteiro está no topo (0°) apontando para baixo
-    // Queremos que o centro do prêmio sorteado fique exatamente sob o ponteiro
+    // Cada seção tem um ângulo específico:
+    // Index 0: 0° a sectionAngle°
+    // Index 1: sectionAngle° a 2*sectionAngle°, etc.
     
-    // Posição do centro de cada seção (em graus)
-    const prizeCenter = selectedIndex * sectionAngle + (sectionAngle / 2);
+    // Para que o prêmio pare exatamente sob o ponteiro,
+    // o centro da seção do prêmio deve estar na posição 0° (topo)
+    const prizeCenterAngle = selectedIndex * sectionAngle + (sectionAngle / 2);
     
-    // Pequena variação aleatória para parecer natural
+    // Pequena variação aleatória
     const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.1);
-    
-    // Ângulo final onde queremos parar (topo = 0°)
-    const targetAngle = prizeCenter + randomOffset;
     
     // Múltiplas voltas completas
     const minSpins = 5;
@@ -61,10 +64,15 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
     const spins = minSpins + Math.random() * (maxSpins - minSpins);
     const totalSpinsDegrees = spins * 360;
     
-    // Para parar no prêmio correto, giramos até que esse prêmio esteja no topo
-    // Como giramos no sentido horário, subtraímos o ângulo do prêmio
-    const totalRotation = totalSpinsDegrees - targetAngle;
-    setFinalRotation(totalRotation);
+    // A roda gira no sentido horário
+    // Para que a seção do prêmio pare no topo (0°), precisamos girar:
+    // totalSpins - (onde a seção está agora) + (onde queremos que pare)
+    const finalRotation = totalSpinsDegrees - prizeCenterAngle + randomOffset;
+    
+    console.log('Ângulo do centro do prêmio:', prizeCenterAngle);
+    console.log('Rotação final:', finalRotation);
+    
+    setFinalRotation(finalRotation);
 
     // Chamar callback após a animação
     setTimeout(() => {
@@ -138,24 +146,26 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
                   />
                 </svg>
                 
-                {/* Texto do prêmio */}
+                {/* Texto do prêmio - corrigido para não desaparecer */}
                 <div 
-                  className="absolute text-center font-bold text-white text-sm leading-tight pointer-events-none"
+                  className="absolute text-center font-bold text-white text-sm leading-tight pointer-events-none z-10"
                   style={{
                     top: '50%',
                     left: '50%',
-                    transform: `translate(-50%, -50%) rotate(${startAngle + sectionAngle / 2}deg) translateY(-120px)`,
-                    width: '140px'
+                    transform: `translate(-50%, -50%) rotate(${startAngle + sectionAngle / 2}deg) translateY(-30%)`,
+                    width: '140px',
+                    height: 'auto'
                   }}
                 >
                   <div 
                     style={{ 
                       transform: `rotate(${-(startAngle + sectionAngle / 2)}deg)`,
-                      textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
+                      textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                      padding: '8px'
                     }}
                   >
-                    <div className="text-xs font-semibold">
-                      {prize.name.length > 18 ? prize.name.substring(0, 18) + '...' : prize.name}
+                    <div className="text-xs font-semibold leading-tight">
+                      {prize.name.length > 15 ? prize.name.substring(0, 15) + '...' : prize.name}
                     </div>
                     <div className="text-xs mt-1 opacity-90">{prize.percentage}%</div>
                   </div>
