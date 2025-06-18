@@ -87,6 +87,7 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
           }}
         >
           {prizes.map((prize, index) => {
+            // Ajustar os ângulos para que o primeiro prêmio fique alinhado com o ponteiro (topo)
             const startAngle = index * sectionAngle;
             const endAngle = (index + 1) * sectionAngle;
             
