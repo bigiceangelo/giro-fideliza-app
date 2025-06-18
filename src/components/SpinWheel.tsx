@@ -16,7 +16,7 @@ interface SpinWheelProps {
 }
 
 const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheelColor }) => {
-  const [finalRotation, setFinalRotation] = useState(0);
+  const [rotation, setRotation] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const wheelRef = useRef<HTMLDivElement>(null);
 
@@ -40,39 +40,32 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
       }
     }
 
-    // Calcular rotação para parar no prêmio sorteado
+    console.log('Prêmio sorteado:', selectedPrize.name, 'Index:', selectedIndex);
+
+    // Calcular rotação
     const sectionAngle = 360 / prizes.length;
     
-    // DEBUG: Vamos logar qual prêmio foi sorteado
-    console.log('Prêmio sorteado:', selectedPrize.name, 'Index:', selectedIndex);
+    // Múltiplas voltas (5-8 voltas)
+    const spins = 5 + Math.random() * 3;
+    const totalSpins = spins * 360;
     
-    // O ponteiro está no topo (0°) apontando para baixo
-    // Cada seção tem um ângulo específico:
-    // Index 0: 0° a sectionAngle°
-    // Index 1: sectionAngle° a 2*sectionAngle°, etc.
+    // Para que o prêmio pare no ponteiro (topo), precisamos calcular:
+    // O ponteiro está em 0° (topo)
+    // Cada prêmio está em sua posição: selectedIndex * sectionAngle
+    // Queremos que o CENTRO do prêmio pare no ponteiro
+    const prizeCenter = selectedIndex * sectionAngle + (sectionAngle / 2);
     
-    // Para que o prêmio pare exatamente sob o ponteiro,
-    // o centro da seção do prêmio deve estar na posição 0° (topo)
-    const prizeCenterAngle = selectedIndex * sectionAngle + (sectionAngle / 2);
+    // Variação pequena para parecer natural
+    const variation = (Math.random() - 0.5) * 10;
     
-    // Pequena variação aleatória
-    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.1);
+    // Rotação final: giros + ajuste para parar no prêmio correto
+    const finalRotation = rotation + totalSpins + (360 - prizeCenter) + variation;
     
-    // Múltiplas voltas completas
-    const minSpins = 5;
-    const maxSpins = 7;
-    const spins = minSpins + Math.random() * (maxSpins - minSpins);
-    const totalSpinsDegrees = spins * 360;
-    
-    // A roda gira no sentido horário
-    // Para que a seção do prêmio pare no topo (0°), precisamos girar:
-    // totalSpins - (onde a seção está agora) + (onde queremos que pare)
-    const finalRotation = totalSpinsDegrees - prizeCenterAngle + randomOffset;
-    
-    console.log('Ângulo do centro do prêmio:', prizeCenterAngle);
+    console.log('Seção do prêmio:', sectionAngle);
+    console.log('Centro do prêmio:', prizeCenter);
     console.log('Rotação final:', finalRotation);
     
-    setFinalRotation(finalRotation);
+    setRotation(finalRotation);
 
     // Chamar callback após a animação
     setTimeout(() => {
@@ -86,24 +79,17 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
   return (
     <div className="flex flex-col items-center space-y-6">
       <div className="relative w-96 h-96">
-        {/* Roda - usando a mesma estrutura da HeroSection mas com prêmios reais */}
+        {/* Roda */}
         <div 
           ref={wheelRef}
-          className={`relative w-96 h-96 rounded-full border-8 border-white shadow-2xl ${
-            isAnimating ? 'duration-[4000ms] ease-out' : ''
-          }`}
+          className="relative w-96 h-96 rounded-full border-8 border-white shadow-2xl bg-white"
           style={{ 
-            transform: `rotate(${finalRotation}deg)`,
-            background: 'white',
-            transition: isAnimating ? 'transform 4000ms cubic-bezier(0.23, 1, 0.32, 1)' : 'none'
+            transform: `rotate(${rotation}deg)`,
+            transition: isAnimating ? 'transform 4s cubic-bezier(0.23, 1, 0.32, 1)' : 'none'
           }}
         >
           {prizes.map((prize, index) => {
-            // Ajustar os ângulos para que o primeiro prêmio fique alinhado com o ponteiro (topo)
-            const startAngle = index * sectionAngle;
-            const endAngle = (index + 1) * sectionAngle;
-            
-            // Cores mais vibrantes e contrastantes
+            // Cores vibrantes
             const colors = [
               '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
               '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
@@ -111,15 +97,17 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
             ];
             const backgroundColor = colors[index % colors.length];
 
-            // Calcular pontos para criar fatias circulares perfeitas
-            // Começar do topo (12h) e ir no sentido horário
-            const centerX = 50;
-            const centerY = 50;
-            const radius = 50;
+            // Ângulos da seção
+            const startAngle = index * sectionAngle;
+            const endAngle = (index + 1) * sectionAngle;
             
-            // Ajustar para que o primeiro prêmio comece no topo (0°)
-            const startAngleRad = (startAngle) * Math.PI / 180;
-            const endAngleRad = (endAngle) * Math.PI / 180;
+            // Criar o path SVG para a fatia
+            const centerX = 192; // metade de 384px
+            const centerY = 192;
+            const radius = 184; // um pouco menor que 192 para deixar espaço na borda
+            
+            const startAngleRad = (startAngle * Math.PI) / 180;
+            const endAngleRad = (endAngle * Math.PI) / 180;
             
             const x1 = centerX + radius * Math.cos(startAngleRad);
             const y1 = centerY + radius * Math.sin(startAngleRad);
@@ -135,39 +123,49 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
               'Z'
             ].join(' ');
 
+            // Posição do texto no meio da seção
+            const textAngle = startAngle + sectionAngle / 2;
+            const textAngleRad = (textAngle * Math.PI) / 180;
+            const textRadius = radius * 0.7; // 70% do raio para posicionar o texto
+            const textX = centerX + textRadius * Math.cos(textAngleRad);
+            const textY = centerY + textRadius * Math.sin(textAngleRad);
+
             return (
               <div key={prize.id} className="absolute inset-0">
-                <svg className="w-full h-full" viewBox="0 0 100 100">
+                {/* Fatia da roda */}
+                <svg className="w-full h-full absolute inset-0" viewBox="0 0 384 384">
                   <path
                     d={pathData}
                     fill={backgroundColor}
                     stroke="white"
-                    strokeWidth="0.5"
+                    strokeWidth="2"
                   />
                 </svg>
                 
-                {/* Texto do prêmio - corrigido para não desaparecer */}
+                {/* Texto do prêmio */}
                 <div 
-                  className="absolute text-center font-bold text-white text-sm leading-tight pointer-events-none z-10"
+                  className="absolute pointer-events-none"
                   style={{
-                    top: '50%',
-                    left: '50%',
-                    transform: `translate(-50%, -50%) rotate(${startAngle + sectionAngle / 2}deg) translateY(-30%)`,
-                    width: '140px',
-                    height: 'auto'
+                    left: `${textX}px`,
+                    top: `${textY}px`,
+                    transform: `translate(-50%, -50%) rotate(${textAngle}deg)`,
+                    transformOrigin: 'center'
                   }}
                 >
                   <div 
+                    className="text-white font-bold text-center"
                     style={{ 
-                      transform: `rotate(${-(startAngle + sectionAngle / 2)}deg)`,
+                      transform: textAngle > 90 && textAngle < 270 ? 'rotate(180deg)' : 'none',
                       textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                      padding: '8px'
+                      fontSize: '14px',
+                      lineHeight: '1.2',
+                      width: '100px'
                     }}
                   >
-                    <div className="text-xs font-semibold leading-tight">
-                      {prize.name.length > 15 ? prize.name.substring(0, 15) + '...' : prize.name}
+                    <div className="text-xs font-bold">
+                      {prize.name.length > 12 ? prize.name.substring(0, 12) + '...' : prize.name}
                     </div>
-                    <div className="text-xs mt-1 opacity-90">{prize.percentage}%</div>
+                    <div className="text-xs opacity-90 mt-1">{prize.percentage}%</div>
                   </div>
                 </div>
               </div>
@@ -175,9 +173,9 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
           })}
         </div>
 
-        {/* Centro da roda com ícone do presente e ponteiro */}
+        {/* Ponteiro e centro */}
         <div className="absolute inset-0 flex items-center justify-center">
-          {/* Ponteiro vermelho apontando para baixo */}
+          {/* Ponteiro apontando para baixo */}
           <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 z-30">
             <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-t-[30px] border-l-transparent border-r-transparent border-t-red-600 drop-shadow-lg"></div>
           </div>
