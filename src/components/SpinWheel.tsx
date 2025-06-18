@@ -132,13 +132,6 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
               'Z'
             ].join(' ');
 
-            // Calcular posição do texto mais simples
-            const textAngle = index * sectionAngle + (sectionAngle / 2); // Sem -90, ângulo direto
-            const textAngleRad = (textAngle * Math.PI) / 180;
-            const textRadius = 25; // Distância do centro em %
-            const textX = 50 + textRadius * Math.cos(textAngleRad - Math.PI/2); // -PI/2 para começar do topo
-            const textY = 50 + textRadius * Math.sin(textAngleRad - Math.PI/2);
-
             return (
               <div key={prize.id} className="absolute inset-0">
                 {/* Fatia da roda */}
@@ -151,33 +144,30 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
                   />
                 </svg>
                 
-                {/* Texto do prêmio - Posicionamento absoluto simples */}
+                {/* Texto do prêmio - método baseado na HeroSection */}
                 <div 
-                  className="absolute pointer-events-none z-20 flex items-center justify-center"
+                  className="absolute text-center font-bold text-white text-sm leading-tight pointer-events-none"
                   style={{
-                    left: `${textX}%`,
-                    top: `${textY}%`,
-                    transform: 'translate(-50%, -50%)',
-                    width: '60px',
-                    height: '40px'
+                    top: '50%',
+                    left: '50%',
+                    transform: `translate(-50%, -50%) rotate(${startAngle + sectionAngle / 2 + 90}deg) translateY(-120px)`,
+                    width: '140px'
                   }}
                 >
                   <div 
-                    className="text-white font-bold text-center"
-                    style={{
-                      textShadow: '2px 2px 4px rgba(0,0,0,1)',
-                      fontSize: '10px',
-                      lineHeight: '1.1',
-                      background: 'rgba(0,0,0,0.7)',
-                      padding: '3px 6px',
-                      borderRadius: '3px',
-                      transform: textAngle > 90 && textAngle < 270 ? 'rotate(180deg)' : 'none'
+                    style={{ 
+                      transform: `rotate(${-(startAngle + sectionAngle / 2 + 90)}deg)`,
+                      textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                      background: 'rgba(0,0,0,0.6)',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px'
                     }}
                   >
-                    <div className="font-bold">
-                      {prize.name.length > 8 ? prize.name.substring(0, 8) + '...' : prize.name}
+                    <div className="text-xs font-semibold">
+                      {prize.name.length > 15 ? prize.name.substring(0, 15) + '...' : prize.name}
                     </div>
-                    <div className="text-xs opacity-90">{prize.percentage}%</div>
+                    <div className="text-xs mt-1 opacity-90">{prize.percentage}%</div>
                   </div>
                 </div>
               </div>
