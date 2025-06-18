@@ -16,11 +16,14 @@ interface SpinWheelProps {
 }
 
 const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheelColor }) => {
-  const [rotation, setRotation] = useState(0);
+  const [finalRotation, setFinalRotation] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
   const wheelRef = useRef<HTMLDivElement>(null);
 
   const handleSpin = () => {
-    if (isSpinning) return;
+    if (isSpinning || isAnimating) return;
+
+    setIsAnimating(true);
 
     // Calcular qual prêmio foi sorteado baseado nas porcentagens
     const random = Math.random() * 100;
@@ -40,25 +43,24 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
     
-    // Adicionar variação aleatória dentro da seção para parecer mais natural
-    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.8);
+    // Adicionar variação aleatória dentro da seção
+    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.6);
     
     // O ponteiro está no topo, então calculamos o ângulo necessário
-    // Para que o prêmio fique embaixo do ponteiro
     const targetAngle = selectedIndex * sectionAngle + (sectionAngle / 2) + randomOffset;
     
-    // Múltiplas voltas completas para criar suspense
-    const minSpins = 5;
-    const maxSpins = 8;
+    // Múltiplas voltas completas (entre 1800 e 2520 graus = 5-7 voltas)
+    const minSpins = 1800; // 5 voltas
+    const maxSpins = 2520; // 7 voltas
     const spins = minSpins + Math.random() * (maxSpins - minSpins);
     
-    // Calcular rotação final (rotação atual + voltas + posição do prêmio)
-    const finalRotation = rotation + (spins * 360) + (360 - targetAngle);
+    // Rotação final total
+    const totalRotation = spins + (360 - targetAngle);
+    setFinalRotation(totalRotation);
 
-    setRotation(finalRotation);
-
-    // Chamar callback após a animação (4 segundos)
+    // Chamar callback após a animação
     setTimeout(() => {
+      setIsAnimating(false);
       onSpin(selectedPrize);
     }, 4000);
   };
@@ -68,14 +70,16 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
   return (
     <div className="flex flex-col items-center space-y-6">
       <div className="relative w-96 h-96">
-        {/* Roda */}
+        {/* Roda - usando a mesma estrutura da HeroSection mas com prêmios reais */}
         <div 
           ref={wheelRef}
-          className="relative w-96 h-96 rounded-full border-8 border-white shadow-2xl"
+          className={`relative w-96 h-96 rounded-full border-8 border-white shadow-2xl ${
+            isAnimating ? 'duration-[4000ms] ease-out' : ''
+          }`}
           style={{ 
-            transform: `rotate(${rotation}deg)`,
+            transform: `rotate(${finalRotation}deg)`,
             background: 'white',
-            transition: isSpinning ? 'transform 4s cubic-bezier(0.23, 1, 0.32, 1)' : 'none'
+            transition: isAnimating ? 'transform 4000ms cubic-bezier(0.23, 1, 0.32, 1)' : 'none'
           }}
         >
           {prizes.map((prize, index) => {
@@ -152,22 +156,24 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
 
         {/* Centro da roda com ícone do presente e ponteiro */}
         <div className="absolute inset-0 flex items-center justify-center">
+          {/* Ponteiro vermelho apontando para baixo (igual ao da HeroSection) */}
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 z-30">
+            <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-red-600 drop-shadow-lg"></div>
+          </div>
+          
+          {/* Centro da roda */}
           <div className="relative w-20 h-20 bg-white rounded-full border-4 border-gray-400 flex items-center justify-center shadow-lg z-20">
             <div className="text-3xl">🎁</div>
-            {/* Ponteiro vermelho apontando para cima */}
-            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
-              <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-b-[24px] border-l-transparent border-r-transparent border-b-red-600 drop-shadow-lg"></div>
-            </div>
           </div>
         </div>
       </div>
 
       <Button 
         onClick={handleSpin} 
-        disabled={isSpinning}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg"
+        disabled={isSpinning || isAnimating}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg disabled:opacity-50"
       >
-        {isSpinning ? 'Girando...' : 'Girar a Roda!'}
+        {isAnimating ? 'Girando...' : 'Girar a Roda!'}
       </Button>
     </div>
   );
