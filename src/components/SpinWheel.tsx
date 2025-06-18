@@ -40,17 +40,18 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
 
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
-    // O ponteiro está no topo (12h), então ajustamos para que aponte para baixo
-    const targetAngle = (selectedIndex * sectionAngle) + (sectionAngle / 2) + 180;
-    const spinAmount = 360 * 8 + Math.random() * 360; // 8+ voltas completas
-    const finalRotation = rotation + spinAmount + (360 - (targetAngle % 360));
+    // O ponteiro está no topo (12h), então calculamos para que aponte para o prêmio
+    const targetAngle = (selectedIndex * sectionAngle) + (sectionAngle / 2);
+    // Múltiplas voltas completas + rotação final para o prêmio
+    const fullSpins = 5 + Math.random() * 3; // Entre 5 e 8 voltas completas
+    const finalRotation = rotation + (fullSpins * 360) + (360 - targetAngle);
 
     setRotation(finalRotation);
 
-    // Chamar callback após a animação (4 segundos para movimento mais suave)
+    // Chamar callback após a animação (6 segundos para movimento mais realista)
     setTimeout(() => {
       onSpin(selectedPrize);
-    }, 4000);
+    }, 6000);
   };
 
   const sectionAngle = 360 / prizes.length;
@@ -58,20 +59,19 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
   return (
     <div className="flex flex-col items-center space-y-6">
       <div className="relative w-96 h-96">
-        {/* Ponteiro apontando para baixo */}
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-2 z-10">
-          <div className="w-0 h-0 border-l-[20px] border-r-[20px] border-t-[40px] border-l-transparent border-r-transparent border-t-red-600 drop-shadow-lg"></div>
+        {/* Ponteiro no centro apontando para cima */}
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 z-20">
+          <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-red-600 drop-shadow-lg"></div>
         </div>
 
         {/* Roda */}
         <div 
           ref={wheelRef}
-          className="relative w-96 h-96 rounded-full border-8 border-white shadow-2xl transition-transform ease-out"
+          className="relative w-96 h-96 rounded-full border-8 border-white shadow-2xl"
           style={{ 
             transform: `rotate(${rotation}deg)`,
             background: 'white',
-            transitionDuration: isSpinning ? '4s' : '0s',
-            transitionTimingFunction: 'cubic-bezier(0.17, 0.67, 0.12, 0.99)'
+            transition: isSpinning ? 'transform 6s cubic-bezier(0.23, 1, 0.32, 1)' : 'none'
           }}
         >
           {prizes.map((prize, index) => {
