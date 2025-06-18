@@ -156,9 +156,9 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
 
         {/* Centro da roda com ícone do presente e ponteiro */}
         <div className="absolute inset-0 flex items-center justify-center">
-          {/* Ponteiro vermelho apontando para baixo (igual ao da HeroSection) */}
-          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 z-30">
-            <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-red-600 drop-shadow-lg"></div>
+          {/* Ponteiro vermelho apontando para a direita */}
+          <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-2 z-30">
+            <div className="w-0 h-0 border-t-[15px] border-b-[15px] border-l-[30px] border-t-transparent border-b-transparent border-l-red-600 drop-shadow-lg"></div>
           </div>
           
           {/* Centro da roda */}
