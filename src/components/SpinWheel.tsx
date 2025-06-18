@@ -43,19 +43,23 @@ const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onSpin, isSpinning, wheel
     // Calcular rotação para parar no prêmio sorteado
     const sectionAngle = 360 / prizes.length;
     
-    // Adicionar variação aleatória dentro da seção
-    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.6);
+    // Adicionar variação aleatória pequena dentro da seção para parecer natural
+    const randomOffset = (Math.random() - 0.5) * (sectionAngle * 0.3);
     
-    // O ponteiro está no topo, então calculamos o ângulo necessário
-    const targetAngle = selectedIndex * sectionAngle + (sectionAngle / 2) + randomOffset;
+    // O ponteiro está no topo apontando para baixo (posição 0°)
+    // Cada prêmio está em uma posição específica
+    // O primeiro prêmio (index 0) deve ficar em 0°, o segundo em sectionAngle°, etc.
+    const targetAngle = selectedIndex * sectionAngle + randomOffset;
     
-    // Múltiplas voltas completas (entre 1800 e 2520 graus = 5-7 voltas)
-    const minSpins = 1800; // 5 voltas
-    const maxSpins = 2520; // 7 voltas
+    // Múltiplas voltas completas (entre 5-7 voltas)
+    const minSpins = 5;
+    const maxSpins = 7;
     const spins = minSpins + Math.random() * (maxSpins - minSpins);
+    const totalSpinsDegrees = spins * 360;
     
-    // Rotação final total
-    const totalRotation = spins + (360 - targetAngle);
+    // Rotação final: voltas completas + ajuste para parar no prêmio correto
+    // Subtraímos targetAngle porque queremos que o prêmio venha "para" o ponteiro
+    const totalRotation = totalSpinsDegrees - targetAngle;
     setFinalRotation(totalRotation);
 
     // Chamar callback após a animação
