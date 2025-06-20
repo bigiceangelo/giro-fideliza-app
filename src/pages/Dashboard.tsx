@@ -71,6 +71,9 @@ const Dashboard = () => {
     if (savedCampaigns) {
       const campaignsData = JSON.parse(savedCampaigns);
       
+      // Debug: Log das campanhas carregadas
+      console.log('Campanhas carregadas:', campaignsData);
+      
       // Calcular participantes para cada campanha
       const participationsData = localStorage.getItem('fidelizagiro_participations');
       const participations = participationsData ? JSON.parse(participationsData) : [];
@@ -138,14 +141,31 @@ const Dashboard = () => {
   };
 
   const shareCampaign = (campaignId: string) => {
+    // Debug: Verificar se a campanha existe
+    console.log('Tentando compartilhar campanha ID:', campaignId);
+    console.log('Campanhas disponíveis:', campaigns.map(c => ({ id: c.id, name: c.name })));
+    
+    const campaign = campaigns.find(c => c.id === campaignId);
+    if (!campaign) {
+      console.error('Campanha não encontrada para compartilhamento:', campaignId);
+      toast({
+        title: 'Erro',
+        description: 'Campanha não encontrada',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     const campaignUrl = `${window.location.origin}/campaign/${campaignId}`;
+    console.log('URL da campanha:', campaignUrl);
     
     if (navigator.share) {
       navigator.share({
-        title: 'Participe da nossa promoção!',
+        title: `Participe da nossa promoção: ${campaign.name}`,
         text: 'Gire a roda da fortuna e ganhe prêmios incríveis!',
         url: campaignUrl
       }).catch((error) => {
+        console.log('Erro no share nativo, copiando para clipboard:', error);
         // Se o share nativo falhar, copia para clipboard
         navigator.clipboard.writeText(campaignUrl);
         toast({
@@ -287,6 +307,12 @@ const Dashboard = () => {
                       Criada em {new Date(campaign.createdAt).toLocaleDateString('pt-BR')}
                     </span>
                   </div>
+                  
+                  {/* Debug: Mostrar ID da campanha */}
+                  <div className="text-xs text-gray-400 mb-2">
+                    ID: {campaign.id}
+                  </div>
+                  
                   <div className="grid grid-cols-2 gap-2">
                     <Button 
                       variant="outline" 
