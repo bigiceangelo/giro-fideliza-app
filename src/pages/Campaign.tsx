@@ -44,7 +44,7 @@ const Campaign = () => {
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [showForm, setShowForm] = useState(true);
-  const [isDataSaved, setIsDataSaved] = useState(false);
+  const [participationId, setParticipationId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -116,28 +116,54 @@ const Campaign = () => {
     }
   }, [id]);
 
-  const saveParticipantData = () => {
-    if (!isDataSaved && campaign && campaign.config.customFields) {
-      // Converter dados do participante para formato legível
-      const readableData: {[key: string]: string} = {};
-      campaign.config.customFields.forEach(field => {
-        readableData[field.name.toLowerCase()] = participantData[field.id] || '';
-      });
+  const createParticipation = () => {
+    if (!campaign || !campaign.config.customFields || participationId) return null;
 
-      const participation = {
-        campaignId: id,
-        ...readableData,
-        timestamp: new Date().toISOString(),
-        hasSpun: false
+    // Gerar ID único para esta participação
+    const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Converter dados do participante para formato legível
+    const readableData: {[key: string]: string} = {};
+    campaign.config.customFields.forEach(field => {
+      readableData[field.name.toLowerCase()] = participantData[field.id] || '';
+    });
+
+    const participation = {
+      id: newParticipationId,
+      campaignId: id,
+      ...readableData,
+      timestamp: new Date().toISOString(),
+      hasSpun: false
+    };
+    
+    const existingParticipations = localStorage.getItem('fidelizagiro_participations');
+    const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
+    participations.push(participation);
+    localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
+    
+    setParticipationId(newParticipationId);
+    console.log('Participação criada:', participation);
+    
+    return newParticipationId;
+  };
+
+  const updateParticipationWithPrize = (participationId: string, prize: Prize) => {
+    const existingParticipations = localStorage.getItem('fidelizagiro_participations');
+    const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
+    
+    const participationIndex = participations.findIndex((p: any) => p.id === participationId);
+    
+    if (participationIndex >= 0) {
+      participations[participationIndex] = {
+        ...participations[participationIndex],
+        prize: prize.name,
+        couponCode: prize.couponCode,
+        hasSpun: true,
+        spinTimestamp: new Date().toISOString()
       };
       
-      const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-      const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-      participations.push(participation);
       localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-      setIsDataSaved(true);
-      
-      console.log('Dados do participante salvos:', participation);
+      console.log('Participação atualizada com prêmio:', participations[participationIndex]);
     }
   };
 
@@ -146,45 +172,33 @@ const Campaign = () => {
     setHasSpun(true);
     setIsSpinning(false);
     
-    // Atualizar participação com o prêmio ganho
-    const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-    const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-    
-    // Converter dados do participante para formato legível
-    const readableData: {[key: string]: string} = {};
-    if (campaign && campaign.config.customFields) {
-      campaign.config.customFields.forEach(field => {
-        readableData[field.name.toLowerCase()] = participantData[field.id] || '';
-      });
-    }
-    
-    // Encontrar a participação atual e atualizá-la
-    const currentParticipationIndex = participations.findIndex(
-      (p: any) => p.campaignId === id && p.email === readableData.email && !p.hasSpun
-    );
-    
-    if (currentParticipationIndex >= 0) {
-      participations[currentParticipationIndex] = {
-        ...participations[currentParticipationIndex],
-        prize: prize.name,
-        couponCode: prize.couponCode,
-        hasSpun: true,
-        spinTimestamp: new Date().toISOString()
-      };
+    // Se já temos uma participação criada, apenas atualizamos com o prêmio
+    if (participationId) {
+      updateParticipationWithPrize(participationId, prize);
     } else {
-      // Se não encontrou, criar nova participação
-      participations.push({
-        campaignId: id,
-        ...readableData,
-        prize: prize.name,
-        couponCode: prize.couponCode,
-        hasSpun: true,
-        timestamp: new Date().toISOString(),
-        spinTimestamp: new Date().toISOString()
-      });
+      // Se não coletamos dados antes, criamos a participação agora
+      if (!campaign?.config.collectDataBefore) {
+        const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const participation = {
+          id: newParticipationId,
+          campaignId: id,
+          prize: prize.name,
+          couponCode: prize.couponCode,
+          hasSpun: true,
+          timestamp: new Date().toISOString(),
+          spinTimestamp: new Date().toISOString()
+        };
+        
+        const existingParticipations = localStorage.getItem('fidelizagiro_participations');
+        const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
+        participations.push(participation);
+        localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
+        
+        setParticipationId(newParticipationId);
+        console.log('Participação criada após giro:', participation);
+      }
     }
-    
-    localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
 
     toast({
       title: 'Parabéns! 🎉',
@@ -220,16 +234,42 @@ const Campaign = () => {
       return;
     }
 
-    // Salvar dados do participante
-    saveParticipantData();
-    
-    if (campaign?.config.collectDataBefore) {
+    if (campaign?.config.collectDataBefore && !hasSpun) {
+      // Coletar dados antes do giro
+      createParticipation();
       setShowForm(false);
       toast({
         title: 'Dados salvos!',
         description: 'Agora você pode girar a roda da fortuna!',
       });
+    } else if (hasSpun && !campaign?.config.collectDataBefore && participationId) {
+      // Atualizar participação após o giro com os dados do formulário
+      const existingParticipations = localStorage.getItem('fidelizagiro_participations');
+      const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
+      
+      const participationIndex = participations.findIndex((p: any) => p.id === participationId);
+      
+      if (participationIndex >= 0 && campaign.config.customFields) {
+        const readableData: {[key: string]: string} = {};
+        campaign.config.customFields.forEach(field => {
+          readableData[field.name.toLowerCase()] = participantData[field.id] || '';
+        });
+        
+        participations[participationIndex] = {
+          ...participations[participationIndex],
+          ...readableData
+        };
+        
+        localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
+        console.log('Dados adicionados à participação existente:', participations[participationIndex]);
+      }
+      
+      toast({
+        title: 'Dados salvos!',
+        description: 'Obrigado por participar!',
+      });
     } else {
+      // Caso padrão - apenas girar
       startSpin();
     }
   };
@@ -237,6 +277,7 @@ const Campaign = () => {
   const resetWheel = () => {
     setHasSpun(false);
     setWonPrize(null);
+    setParticipationId(null);
     
     // Resetar dados do participante
     if (campaign && campaign.config.customFields) {
@@ -248,7 +289,6 @@ const Campaign = () => {
     }
     
     setShowForm(campaign?.config.collectDataBefore || false);
-    setIsDataSaved(false);
   };
 
   const shareResult = () => {
@@ -314,7 +354,7 @@ const Campaign = () => {
             <CardTitle className="text-xl">{campaign.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Formulário de Dados */}
+            {/* Formulário de Dados ANTES do giro */}
             {showForm && !hasSpun && hasCustomFields && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 {campaign.config.customFields?.map((field) => (
@@ -337,7 +377,7 @@ const Campaign = () => {
                   </div>
                 ))}
                 <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
-                  {campaign.config.collectDataBefore ? 'Continuar' : 'Girar a Roda!'}
+                  Continuar para a Roda
                 </Button>
               </form>
             )}
@@ -386,8 +426,8 @@ const Campaign = () => {
               </div>
             )}
 
-            {/* Formulário pós-giro */}
-            {hasSpun && !campaign.config.collectDataBefore && !isDataSaved && hasCustomFields && (
+            {/* Formulário pós-giro (apenas se não coletou dados antes E não tem participationId válido) */}
+            {hasSpun && !campaign.config.collectDataBefore && !participationId && hasCustomFields && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <p className="text-center text-sm text-gray-600 mb-4">
                   Deixe seus dados para receber seu prêmio:
