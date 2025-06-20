@@ -48,51 +48,70 @@ const Campaign = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('Carregando campanha com ID:', id);
+    console.log('Loading campaign with ID:', id);
     
-    // Carregar dados da campanha
-    try {
-      const campaigns = localStorage.getItem('fidelizagiro_campaigns');
-      console.log('Campanhas encontradas:', campaigns);
-      
-      if (campaigns) {
-        const parsedCampaigns = JSON.parse(campaigns);
-        const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
+    const loadCampaign = () => {
+      try {
+        // Try to load from localStorage first
+        const campaigns = localStorage.getItem('fidelizagiro_campaigns');
+        console.log('Raw campaigns from localStorage:', campaigns);
         
-        console.log('Campanha encontrada:', foundCampaign);
-        
-        if (foundCampaign) {
-          // Garantir que customFields existe, senão usar array vazio
-          if (!foundCampaign.config) {
-            foundCampaign.config = {
+        if (campaigns) {
+          const parsedCampaigns = JSON.parse(campaigns);
+          console.log('Parsed campaigns:', parsedCampaigns);
+          
+          const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
+          console.log('Found campaign:', foundCampaign);
+          
+          if (foundCampaign) {
+            // Ensure all required config properties exist
+            const defaultConfig = {
               prizes: [],
               collectDataBefore: false,
               thankYouMessage: 'Obrigado por participar!',
               wheelColor: '#3B82F6',
               customFields: []
             };
-          }
-          
-          if (!foundCampaign.config.customFields) {
-            foundCampaign.config.customFields = [];
-          }
-          
-          setCampaign(foundCampaign);
-          setShowForm(foundCampaign.config.collectDataBefore);
-          
-          // Inicializar dados do participante com campos vazios
-          const initialData: {[key: string]: string} = {};
-          if (foundCampaign.config.customFields) {
-            foundCampaign.config.customFields.forEach(field => {
+            
+            const campaign = {
+              ...foundCampaign,
+              config: {
+                ...defaultConfig,
+                ...foundCampaign.config,
+                customFields: foundCampaign.config?.customFields || []
+              }
+            };
+            
+            console.log('Final campaign object:', campaign);
+            setCampaign(campaign);
+            setShowForm(campaign.config.collectDataBefore);
+            
+            // Initialize participant data
+            const initialData: {[key: string]: string} = {};
+            campaign.config.customFields.forEach(field => {
               initialData[field.id] = '';
             });
+            setParticipantData(initialData);
+            setLoading(false);
+            return;
           }
-          setParticipantData(initialData);
         }
+        
+        // If not found in localStorage, campaign doesn't exist
+        console.log('Campaign not found in localStorage');
+        setCampaign(null);
+        setLoading(false);
+        
+      } catch (error) {
+        console.error('Error loading campaign:', error);
+        setCampaign(null);
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Erro ao carregar campanha:', error);
-    } finally {
+    };
+
+    if (id) {
+      loadCampaign();
+    } else {
       setLoading(false);
     }
   }, [id]);
@@ -266,6 +285,11 @@ const Campaign = () => {
           <h1 className="text-2xl font-bold mb-4">Campanha não encontrada</h1>
           <p className="text-gray-600 mb-4">A campanha que você está procurando não existe ou foi removida.</p>
           <p className="text-sm text-gray-500">ID da campanha: {id}</p>
+          <div className="mt-6">
+            <Button onClick={() => window.location.href = '/'} className="bg-brand-blue hover:bg-blue-600">
+              Voltar ao Início
+            </Button>
+          </div>
         </div>
       </div>
     );
