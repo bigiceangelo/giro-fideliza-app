@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ interface Prize {
 interface CustomField {
   id: string;
   name: string;
-  type: 'text' | 'email' | 'phone' | 'number';
+  type: 'text' | 'email' | 'phone' | 'number' | 'date';
   required: boolean;
   placeholder: string;
 }
@@ -230,13 +231,14 @@ const CreateCampaign = () => {
                             <SelectItem value="email">Email</SelectItem>
                             <SelectItem value="phone">Telefone</SelectItem>
                             <SelectItem value="number">Número</SelectItem>
+                            <SelectItem value="date">Data</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
                         <Label className="text-sm text-gray-600">Placeholder</Label>
                         <Input
-                          placeholder="Texto de ajuda"
+                          placeholder={field.type === 'date' ? 'Ex: Data de nascimento' : 'Texto de ajuda'}
                           value={field.placeholder}
                           onChange={(e) => updateCustomField(field.id, 'placeholder', e.target.value)}
                         />
