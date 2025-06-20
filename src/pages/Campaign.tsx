@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,7 @@ interface Prize {
 interface CustomField {
   id: string;
   name: string;
-  type: 'text' | 'email' | 'phone' | 'number';
+  type: 'text' | 'email' | 'phone' | 'number' | 'date';
   required: boolean;
   placeholder: string;
 }
@@ -39,6 +38,7 @@ interface CampaignData {
 const Campaign = () => {
   const { id } = useParams();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [participantData, setParticipantData] = useState<{[key: string]: string}>({});
   const [hasSpun, setHasSpun] = useState(false);
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
@@ -48,27 +48,52 @@ const Campaign = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('Carregando campanha com ID:', id);
+    
     // Carregar dados da campanha
-    const campaigns = localStorage.getItem('fidelizagiro_campaigns');
-    if (campaigns) {
-      const parsedCampaigns = JSON.parse(campaigns);
-      const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
-      if (foundCampaign) {
-        // Garantir que customFields existe, senão usar array vazio
-        if (!foundCampaign.config.customFields) {
-          foundCampaign.config.customFields = [];
+    try {
+      const campaigns = localStorage.getItem('fidelizagiro_campaigns');
+      console.log('Campanhas encontradas:', campaigns);
+      
+      if (campaigns) {
+        const parsedCampaigns = JSON.parse(campaigns);
+        const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
+        
+        console.log('Campanha encontrada:', foundCampaign);
+        
+        if (foundCampaign) {
+          // Garantir que customFields existe, senão usar array vazio
+          if (!foundCampaign.config) {
+            foundCampaign.config = {
+              prizes: [],
+              collectDataBefore: false,
+              thankYouMessage: 'Obrigado por participar!',
+              wheelColor: '#3B82F6',
+              customFields: []
+            };
+          }
+          
+          if (!foundCampaign.config.customFields) {
+            foundCampaign.config.customFields = [];
+          }
+          
+          setCampaign(foundCampaign);
+          setShowForm(foundCampaign.config.collectDataBefore);
+          
+          // Inicializar dados do participante com campos vazios
+          const initialData: {[key: string]: string} = {};
+          if (foundCampaign.config.customFields) {
+            foundCampaign.config.customFields.forEach(field => {
+              initialData[field.id] = '';
+            });
+          }
+          setParticipantData(initialData);
         }
-        
-        setCampaign(foundCampaign);
-        setShowForm(foundCampaign.config.collectDataBefore);
-        
-        // Inicializar dados do participante com campos vazios
-        const initialData: {[key: string]: string} = {};
-        foundCampaign.config.customFields.forEach(field => {
-          initialData[field.id] = '';
-        });
-        setParticipantData(initialData);
       }
+    } catch (error) {
+      console.error('Erro ao carregar campanha:', error);
+    } finally {
+      setLoading(false);
     }
   }, [id]);
 
@@ -223,12 +248,24 @@ const Campaign = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-lime-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 bg-gradient-to-br from-brand-blue to-brand-lime rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando campanha...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!campaign) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-lime-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Campanha não encontrada</h1>
-          <p className="text-gray-600">A campanha que você está procurando não existe ou foi removida.</p>
+          <p className="text-gray-600 mb-4">A campanha que você está procurando não existe ou foi removida.</p>
+          <p className="text-sm text-gray-500">ID da campanha: {id}</p>
         </div>
       </div>
     );
@@ -256,7 +293,7 @@ const Campaign = () => {
             {/* Formulário de Dados */}
             {showForm && !hasSpun && hasCustomFields && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
-                {campaign.config.customFields.map((field) => (
+                {campaign.config.customFields?.map((field) => (
                   <div key={field.id} className="space-y-2">
                     <Label htmlFor={field.id}>
                       {field.name}
@@ -331,7 +368,7 @@ const Campaign = () => {
                 <p className="text-center text-sm text-gray-600 mb-4">
                   Deixe seus dados para receber seu prêmio:
                 </p>
-                {campaign.config.customFields.map((field) => (
+                {campaign.config.customFields?.map((field) => (
                   <div key={field.id} className="space-y-2">
                     <Label htmlFor={field.id}>
                       {field.name}
