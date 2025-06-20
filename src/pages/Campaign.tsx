@@ -32,7 +32,7 @@ interface CampaignData {
     collectDataBefore: boolean;
     thankYouMessage: string;
     wheelColor: string;
-    customFields: CustomField[];
+    customFields?: CustomField[];
   };
 }
 
@@ -54,6 +54,11 @@ const Campaign = () => {
       const parsedCampaigns = JSON.parse(campaigns);
       const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
       if (foundCampaign) {
+        // Garantir que customFields existe, senão usar array vazio
+        if (!foundCampaign.config.customFields) {
+          foundCampaign.config.customFields = [];
+        }
+        
         setCampaign(foundCampaign);
         setShowForm(foundCampaign.config.collectDataBefore);
         
@@ -68,7 +73,7 @@ const Campaign = () => {
   }, [id]);
 
   const saveParticipantData = () => {
-    if (!isDataSaved && campaign) {
+    if (!isDataSaved && campaign && campaign.config.customFields) {
       // Converter dados do participante para formato legível
       const readableData: {[key: string]: string} = {};
       campaign.config.customFields.forEach(field => {
@@ -103,7 +108,7 @@ const Campaign = () => {
     
     // Converter dados do participante para formato legível
     const readableData: {[key: string]: string} = {};
-    if (campaign) {
+    if (campaign && campaign.config.customFields) {
       campaign.config.customFields.forEach(field => {
         readableData[field.name.toLowerCase()] = participantData[field.id] || '';
       });
@@ -148,7 +153,7 @@ const Campaign = () => {
   };
 
   const validateForm = () => {
-    if (!campaign) return false;
+    if (!campaign || !campaign.config.customFields) return true;
     
     for (const field of campaign.config.customFields) {
       if (field.required && !participantData[field.id]?.trim()) {
@@ -190,7 +195,7 @@ const Campaign = () => {
     setWonPrize(null);
     
     // Resetar dados do participante
-    if (campaign) {
+    if (campaign && campaign.config.customFields) {
       const initialData: {[key: string]: string} = {};
       campaign.config.customFields.forEach(field => {
         initialData[field.id] = '';
@@ -229,6 +234,9 @@ const Campaign = () => {
     );
   }
 
+  // Se não tem campos customizados, não mostrar formulário
+  const hasCustomFields = campaign.config.customFields && campaign.config.customFields.length > 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-lime-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
@@ -246,7 +254,7 @@ const Campaign = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Formulário de Dados */}
-            {showForm && !hasSpun && (
+            {showForm && !hasSpun && hasCustomFields && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 {campaign.config.customFields.map((field) => (
                   <div key={field.id} className="space-y-2">
@@ -274,7 +282,7 @@ const Campaign = () => {
             )}
 
             {/* Roda da Fortuna */}
-            {!showForm && !hasSpun && (
+            {(!showForm || !hasCustomFields) && !hasSpun && (
               <div className="text-center">
                 <SpinWheel
                   prizes={campaign.config.prizes}
@@ -318,7 +326,7 @@ const Campaign = () => {
             )}
 
             {/* Formulário pós-giro */}
-            {hasSpun && !campaign.config.collectDataBefore && !isDataSaved && (
+            {hasSpun && !campaign.config.collectDataBefore && !isDataSaved && hasCustomFields && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <p className="text-center text-sm text-gray-600 mb-4">
                   Deixe seus dados para receber seu prêmio:
