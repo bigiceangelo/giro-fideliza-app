@@ -1,13 +1,12 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Eye, Share2, Download, LogOut, Settings, Edit, Trash2, Users } from 'lucide-react';
+import { Plus, Eye, Share2, LogOut, Settings, Edit, Trash2, Users, Cog } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import ParticipantsModal from '@/components/ParticipantsModal';
+import WheelSimulationModal from '@/components/WheelSimulationModal';
 
 interface Campaign {
   id: string;
@@ -22,6 +21,9 @@ interface Campaign {
     thankYouMessage: string;
     wheelColor: string;
     customFields: CustomField[];
+    description?: string;
+    rules?: string;
+    prizeDescription?: string;
   };
 }
 
@@ -39,14 +41,17 @@ interface Participant {
   hasSpun: boolean;
   prize?: string;
   couponCode?: string;
+  couponUsed?: boolean;
   [key: string]: any; // Para campos customizados
 }
 
 const Dashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [showWheelModal, setShowWheelModal] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -88,6 +93,29 @@ const Dashboard = () => {
     }
   };
 
+  const updateParticipant = (index: number, updates: Partial<Participant>) => {
+    const updatedParticipants = [...participants];
+    updatedParticipants[index] = { ...updatedParticipants[index], ...updates };
+    setParticipants(updatedParticipants);
+
+    // Atualizar no localStorage
+    const participationsData = localStorage.getItem('fidelizagiro_participations');
+    if (participationsData) {
+      const allParticipations = JSON.parse(participationsData);
+      const participantToUpdate = updatedParticipants[index];
+      
+      const globalIndex = allParticipations.findIndex((p: Participant) => 
+        p.campaignId === participantToUpdate.campaignId && 
+        p.timestamp === participantToUpdate.timestamp
+      );
+      
+      if (globalIndex >= 0) {
+        allParticipations[globalIndex] = participantToUpdate;
+        localStorage.setItem('fidelizagiro_participations', JSON.stringify(allParticipations));
+      }
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('fidelizagiro_user');
     localStorage.removeItem('fidelizagiro_campaigns');
@@ -109,39 +137,40 @@ const Dashboard = () => {
     });
   };
 
-  const exportParticipants = (campaignId: string) => {
-    const participationsData = localStorage.getItem('fidelizagiro_participations');
-    if (participationsData) {
-      const allParticipations = JSON.parse(participationsData);
-      const campaignParticipants = allParticipations.filter((p: Participant) => p.campaignId === campaignId);
-      
-      if (campaignParticipants.length === 0) {
-        toast({
-          title: 'Nenhum participante',
-          description: 'Esta campanha ainda não possui participantes',
-          variant: 'destructive'
-        });
-        return;
-      }
-
-      // Criar CSV
-      const headers = Object.keys(campaignParticipants[0]).join(',');
-      const rows = campaignParticipants.map(p => Object.values(p).join(',')).join('\n');
-      const csv = `${headers}\n${rows}`;
-      
-      // Download
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `participantes-${campaignId}.csv`;
-      a.click();
-    }
+  const shareCampaign = (campaignId: string) => {
+    const campaignUrl = `${window.location.origin}/campaign/${campaignId}`;
     
-    toast({
-      title: 'Exportando participantes',
-      description: 'O arquivo CSV foi baixado',
-    });
+    if (navigator.share) {
+      navigator.share({
+        title: 'Participe da nossa promoção!',
+        text: 'Gire a roda da fortuna e ganhe prêmios incríveis!',
+        url: campaignUrl
+      }).catch((error) => {
+        // Se o share nativo falhar, copia para clipboard
+        navigator.clipboard.writeText(campaignUrl);
+        toast({
+          title: 'Link copiado!',
+          description: 'O link da campanha foi copiado para a área de transferência',
+        });
+      });
+    } else {
+      navigator.clipboard.writeText(campaignUrl);
+      toast({
+        title: 'Link copiado!',
+        description: 'O link da campanha foi copiado para a área de transferência',
+      });
+    }
+  };
+
+  const openWheelSimulation = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setShowWheelModal(true);
+  };
+
+  const openParticipantsModal = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    loadParticipants(campaign.id);
+    setShowParticipantsModal(true);
   };
 
   if (!user) return null;
@@ -259,75 +288,42 @@ const Dashboard = () => {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Link to={`/campaign/${campaign.id}`}>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Eye className="w-4 h-4 mr-2" />
-                        Ver
-                      </Button>
-                    </Link>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => openWheelSimulation(campaign)}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Ver
+                    </Button>
                     <Link to={`/edit-campaign/${campaign.id}`}>
                       <Button variant="outline" size="sm" className="w-full">
                         <Edit className="w-4 h-4 mr-2" />
                         Editar
                       </Button>
                     </Link>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => {
-                            setSelectedCampaign(campaign.id);
-                            loadParticipants(campaign.id);
-                          }}
-                        >
-                          <Users className="w-4 h-4 mr-2" />
-                          Participantes
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle>Participantes - {campaign.name}</DialogTitle>
-                        </DialogHeader>
-                        {participants.length === 0 ? (
-                          <p className="text-center text-gray-500 py-8">Nenhum participante ainda</p>
-                        ) : (
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Nome</TableHead>
-                                <TableHead>Email</TableHead>
-                                <TableHead>Telefone</TableHead>
-                                <TableHead>Prêmio</TableHead>
-                                <TableHead>Data</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {participants.map((participant, index) => (
-                                <TableRow key={index}>
-                                  <TableCell>{participant.name || 'N/A'}</TableCell>
-                                  <TableCell>{participant.email || 'N/A'}</TableCell>
-                                  <TableCell>{participant.phone || 'N/A'}</TableCell>
-                                  <TableCell>{participant.prize || 'Não girou'}</TableCell>
-                                  <TableCell>{new Date(participant.timestamp).toLocaleDateString('pt-BR')}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        )}
-                      </DialogContent>
-                    </Dialog>
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => exportParticipants(campaign.id)}
+                      className="w-full"
+                      onClick={() => openParticipantsModal(campaign)}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Participantes
+                    </Button>
+                    <Link to={`/campaign-config/${campaign.id}`}>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Cog className="w-4 h-4 mr-2" />
+                        Configurar
+                      </Button>
+                    </Link>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => shareCampaign(campaign.id)}
                       className="w-full"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      CSV
-                    </Button>
-                    <Button variant="outline" size="sm" className="w-full">
                       <Share2 className="w-4 h-4 mr-2" />
                       Compartilhar
                     </Button>
@@ -347,6 +343,28 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      {selectedCampaign && (
+        <>
+          <ParticipantsModal
+            isOpen={showParticipantsModal}
+            onClose={() => setShowParticipantsModal(false)}
+            campaignName={selectedCampaign.name}
+            campaignId={selectedCampaign.id}
+            participants={participants}
+            onUpdateParticipant={updateParticipant}
+          />
+          
+          <WheelSimulationModal
+            isOpen={showWheelModal}
+            onClose={() => setShowWheelModal(false)}
+            campaignName={selectedCampaign.name}
+            prizes={selectedCampaign.config?.prizes || []}
+            wheelColor={selectedCampaign.config?.wheelColor || '#3B82F6'}
+          />
+        </>
+      )}
     </div>
   );
 };
