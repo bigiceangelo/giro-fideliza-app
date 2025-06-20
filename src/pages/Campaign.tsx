@@ -48,70 +48,88 @@ const Campaign = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('Loading campaign with ID:', id);
+    console.log('=== CAMPAIGN DEBUG START ===');
+    console.log('Campaign ID from URL:', id);
+    console.log('URL atual:', window.location.href);
     
     const loadCampaign = () => {
       try {
-        // Try to load from localStorage first
         const campaigns = localStorage.getItem('fidelizagiro_campaigns');
         console.log('Raw campaigns from localStorage:', campaigns);
         
-        if (campaigns) {
-          const parsedCampaigns = JSON.parse(campaigns);
-          console.log('Parsed campaigns:', parsedCampaigns);
-          
-          const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
-          console.log('Found campaign:', foundCampaign);
-          
-          if (foundCampaign) {
-            // Ensure all required config properties exist
-            const defaultConfig = {
-              prizes: [],
-              collectDataBefore: false,
-              thankYouMessage: 'Obrigado por participar!',
-              wheelColor: '#3B82F6',
-              customFields: []
-            };
-            
-            const campaign = {
-              ...foundCampaign,
-              config: {
-                ...defaultConfig,
-                ...foundCampaign.config,
-                customFields: foundCampaign.config?.customFields || []
-              }
-            };
-            
-            console.log('Final campaign object:', campaign);
-            setCampaign(campaign);
-            setShowForm(campaign.config.collectDataBefore);
-            
-            // Initialize participant data
-            const initialData: {[key: string]: string} = {};
-            campaign.config.customFields.forEach(field => {
-              initialData[field.id] = '';
-            });
-            setParticipantData(initialData);
-            setLoading(false);
-            return;
-          }
+        if (!campaigns) {
+          console.log('Nenhuma campanha encontrada no localStorage');
+          setCampaign(null);
+          setLoading(false);
+          return;
         }
         
-        // If not found in localStorage, campaign doesn't exist
-        console.log('Campaign not found in localStorage');
+        const parsedCampaigns = JSON.parse(campaigns);
+        console.log('Parsed campaigns:', parsedCampaigns);
+        console.log('Quantidade de campanhas:', parsedCampaigns.length);
+        
+        // Debug: Listar todos os IDs das campanhas
+        console.log('IDs das campanhas disponíveis:', 
+          parsedCampaigns.map((c: CampaignData) => ({ id: c.id, name: c.name }))
+        );
+        
+        const foundCampaign = parsedCampaigns.find((c: CampaignData) => {
+          console.log(`Comparando: "${c.id}" === "${id}"`);
+          return c.id === id;
+        });
+        
+        console.log('Campanha encontrada:', foundCampaign);
+        
+        if (foundCampaign) {
+          const defaultConfig = {
+            prizes: [],
+            collectDataBefore: false,
+            thankYouMessage: 'Obrigado por participar!',
+            wheelColor: '#3B82F6',
+            customFields: []
+          };
+          
+          const campaign = {
+            ...foundCampaign,
+            config: {
+              ...defaultConfig,
+              ...foundCampaign.config,
+              customFields: foundCampaign.config?.customFields || []
+            }
+          };
+          
+          console.log('Final campaign object:', campaign);
+          setCampaign(campaign);
+          setShowForm(campaign.config.collectDataBefore);
+          
+          // Initialize participant data
+          const initialData: {[key: string]: string} = {};
+          campaign.config.customFields.forEach(field => {
+            initialData[field.id] = '';
+          });
+          setParticipantData(initialData);
+          setLoading(false);
+          console.log('=== CAMPAIGN DEBUG END (SUCCESS) ===');
+          return;
+        }
+        
+        console.log('Campanha não encontrada com ID:', id);
         setCampaign(null);
         setLoading(false);
+        console.log('=== CAMPAIGN DEBUG END (NOT FOUND) ===');
         
       } catch (error) {
-        console.error('Error loading campaign:', error);
+        console.error('Erro ao carregar campanha:', error);
         setCampaign(null);
         setLoading(false);
+        console.log('=== CAMPAIGN DEBUG END (ERROR) ===');
       }
     };
 
     if (id) {
       loadCampaign();
     } else {
+      console.log('ID não fornecido na URL');
       setLoading(false);
     }
   }, [id]);
@@ -119,10 +137,8 @@ const Campaign = () => {
   const createParticipation = () => {
     if (!campaign || !campaign.config.customFields || participationId) return null;
 
-    // Gerar ID único para esta participação
     const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Converter dados do participante para formato legível
     const readableData: {[key: string]: string} = {};
     campaign.config.customFields.forEach(field => {
       readableData[field.name.toLowerCase()] = participantData[field.id] || '';
@@ -172,11 +188,9 @@ const Campaign = () => {
     setHasSpun(true);
     setIsSpinning(false);
     
-    // Se já temos uma participação criada, apenas atualizamos com o prêmio
     if (participationId) {
       updateParticipationWithPrize(participationId, prize);
     } else {
-      // Se não coletamos dados antes, criamos a participação agora
       if (!campaign?.config.collectDataBefore) {
         const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
@@ -224,7 +238,6 @@ const Campaign = () => {
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validar se todos os campos obrigatórios estão preenchidos
     if (!validateForm()) {
       toast({
         title: 'Erro',
@@ -235,7 +248,6 @@ const Campaign = () => {
     }
 
     if (campaign?.config.collectDataBefore && !hasSpun) {
-      // Coletar dados antes do giro
       createParticipation();
       setShowForm(false);
       toast({
@@ -243,7 +255,6 @@ const Campaign = () => {
         description: 'Agora você pode girar a roda da fortuna!',
       });
     } else if (hasSpun && !campaign?.config.collectDataBefore && participationId) {
-      // Atualizar participação após o giro com os dados do formulário
       const existingParticipations = localStorage.getItem('fidelizagiro_participations');
       const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
       
@@ -269,7 +280,6 @@ const Campaign = () => {
         description: 'Obrigado por participar!',
       });
     } else {
-      // Caso padrão - apenas girar
       startSpin();
     }
   };
@@ -279,7 +289,6 @@ const Campaign = () => {
     setWonPrize(null);
     setParticipationId(null);
     
-    // Resetar dados do participante
     if (campaign && campaign.config.customFields) {
       const initialData: {[key: string]: string} = {};
       campaign.config.customFields.forEach(field => {
@@ -324,7 +333,15 @@ const Campaign = () => {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Campanha não encontrada</h1>
           <p className="text-gray-600 mb-4">A campanha que você está procurando não existe ou foi removida.</p>
-          <p className="text-sm text-gray-500">ID da campanha: {id}</p>
+          
+          {/* Debug info */}
+          <div className="bg-gray-100 p-4 rounded-lg mb-4 text-left max-w-md">
+            <p className="text-sm text-gray-600 mb-2"><strong>Debug Info:</strong></p>
+            <p className="text-xs text-gray-500">ID buscado: {id}</p>
+            <p className="text-xs text-gray-500">URL atual: {window.location.href}</p>
+            <p className="text-xs text-gray-500">localStorage: {localStorage.getItem('fidelizagiro_campaigns') ? 'Encontrado' : 'Vazio'}</p>
+          </div>
+          
           <div className="mt-6">
             <Button onClick={() => window.location.href = '/'} className="bg-brand-blue hover:bg-blue-600">
               Voltar ao Início
@@ -352,6 +369,11 @@ const Campaign = () => {
               <h1 className="text-2xl font-bold text-gradient">FidelizaGiro</h1>
             </div>
             <CardTitle className="text-xl">{campaign.name}</CardTitle>
+            
+            {/* Debug: Mostrar ID da campanha */}
+            <div className="text-xs text-gray-400">
+              ID: {campaign.id}
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Formulário de Dados ANTES do giro */}
