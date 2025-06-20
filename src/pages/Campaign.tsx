@@ -45,12 +45,12 @@ const Campaign = () => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [showForm, setShowForm] = useState(true);
   const [participationId, setParticipationId] = useState<string | null>(null);
+  const [dataCollected, setDataCollected] = useState(false); // Nova flag para controlar se os dados foram coletados
   const { toast } = useToast();
 
   useEffect(() => {
     console.log('=== CAMPAIGN DEBUG START ===');
     console.log('Campaign ID from URL:', id);
-    console.log('URL atual:', window.location.href);
     
     const loadCampaign = () => {
       try {
@@ -66,12 +66,6 @@ const Campaign = () => {
         
         const parsedCampaigns = JSON.parse(campaigns);
         console.log('Parsed campaigns:', parsedCampaigns);
-        console.log('Quantidade de campanhas:', parsedCampaigns.length);
-        
-        // Debug: Listar todos os IDs das campanhas
-        console.log('IDs das campanhas disponíveis:', 
-          parsedCampaigns.map((c: CampaignData) => ({ id: c.id, name: c.name }))
-        );
         
         const foundCampaign = parsedCampaigns.find((c: CampaignData) => {
           console.log(`Comparando: "${c.id}" === "${id}"`);
@@ -99,8 +93,16 @@ const Campaign = () => {
           };
           
           console.log('Final campaign object:', campaign);
+          console.log('Collect data before spin:', campaign.config.collectDataBefore);
+          
           setCampaign(campaign);
-          setShowForm(campaign.config.collectDataBefore);
+          
+          // Definir se deve mostrar formulário baseado na configuração
+          if (campaign.config.collectDataBefore) {
+            setShowForm(true); // Mostrar formulário antes do giro
+          } else {
+            setShowForm(false); // Não mostrar formulário antes, apenas a roda
+          }
           
           // Initialize participant data
           const initialData: {[key: string]: string} = {};
@@ -188,30 +190,34 @@ const Campaign = () => {
     setHasSpun(true);
     setIsSpinning(false);
     
+    console.log('Prêmio ganho:', prize.name);
+    console.log('Coleta dados antes?', campaign?.config.collectDataBefore);
+    console.log('Tem campos customizados?', campaign?.config.customFields?.length || 0);
+    
     if (participationId) {
+      // Se já temos uma participação (dados coletados antes), apenas atualizamos com o prêmio
       updateParticipationWithPrize(participationId, prize);
     } else {
-      if (!campaign?.config.collectDataBefore) {
-        const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        const participation = {
-          id: newParticipationId,
-          campaignId: id,
-          prize: prize.name,
-          couponCode: prize.couponCode,
-          hasSpun: true,
-          timestamp: new Date().toISOString(),
-          spinTimestamp: new Date().toISOString()
-        };
-        
-        const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-        const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-        participations.push(participation);
-        localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-        
-        setParticipationId(newParticipationId);
-        console.log('Participação criada após giro:', participation);
-      }
+      // Se não coletou dados antes, criamos participação básica com o prêmio
+      const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const participation = {
+        id: newParticipationId,
+        campaignId: id,
+        prize: prize.name,
+        couponCode: prize.couponCode,
+        hasSpun: true,
+        timestamp: new Date().toISOString(),
+        spinTimestamp: new Date().toISOString()
+      };
+      
+      const existingParticipations = localStorage.getItem('fidelizagiro_participations');
+      const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
+      participations.push(participation);
+      localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
+      
+      setParticipationId(newParticipationId);
+      console.log('Participação criada após giro:', participation);
     }
 
     toast({
@@ -248,13 +254,16 @@ const Campaign = () => {
     }
 
     if (campaign?.config.collectDataBefore && !hasSpun) {
+      // ANTES DO GIRO: Coletar dados e depois permitir girar
       createParticipation();
       setShowForm(false);
+      setDataCollected(true);
       toast({
         title: 'Dados salvos!',
         description: 'Agora você pode girar a roda da fortuna!',
       });
     } else if (hasSpun && !campaign?.config.collectDataBefore && participationId) {
+      // APÓS O GIRO: Atualizar participação existente com os dados
       const existingParticipations = localStorage.getItem('fidelizagiro_participations');
       const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
       
@@ -275,11 +284,13 @@ const Campaign = () => {
         console.log('Dados adicionados à participação existente:', participations[participationIndex]);
       }
       
+      setDataCollected(true);
       toast({
         title: 'Dados salvos!',
         description: 'Obrigado por participar!',
       });
     } else {
+      // Caso padrão - apenas girar (não deveria chegar aqui normalmente)
       startSpin();
     }
   };
@@ -288,6 +299,7 @@ const Campaign = () => {
     setHasSpun(false);
     setWonPrize(null);
     setParticipationId(null);
+    setDataCollected(false);
     
     if (campaign && campaign.config.customFields) {
       const initialData: {[key: string]: string} = {};
@@ -297,7 +309,12 @@ const Campaign = () => {
       setParticipantData(initialData);
     }
     
-    setShowForm(campaign?.config.collectDataBefore || false);
+    // Resetar formulário baseado na configuração
+    if (campaign?.config.collectDataBefore) {
+      setShowForm(true); // Mostrar formulário antes do giro
+    } else {
+      setShowForm(false); // Não mostrar formulário antes, apenas a roda
+    }
   };
 
   const shareResult = () => {
@@ -333,15 +350,7 @@ const Campaign = () => {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Campanha não encontrada</h1>
           <p className="text-gray-600 mb-4">A campanha que você está procurando não existe ou foi removida.</p>
-          
-          {/* Debug info */}
-          <div className="bg-gray-100 p-4 rounded-lg mb-4 text-left max-w-md">
-            <p className="text-sm text-gray-600 mb-2"><strong>Debug Info:</strong></p>
-            <p className="text-xs text-gray-500">ID buscado: {id}</p>
-            <p className="text-xs text-gray-500">URL atual: {window.location.href}</p>
-            <p className="text-xs text-gray-500">localStorage: {localStorage.getItem('fidelizagiro_campaigns') ? 'Encontrado' : 'Vazio'}</p>
-          </div>
-          
+          <p className="text-sm text-gray-500">ID da campanha: {id}</p>
           <div className="mt-6">
             <Button onClick={() => window.location.href = '/'} className="bg-brand-blue hover:bg-blue-600">
               Voltar ao Início
@@ -352,7 +361,7 @@ const Campaign = () => {
     );
   }
 
-  // Se não tem campos customizados, não mostrar formulário
+  // Se não tem campos customizados, não precisa de formulários
   const hasCustomFields = campaign.config.customFields && campaign.config.customFields.length > 0;
 
   return (
@@ -369,16 +378,14 @@ const Campaign = () => {
               <h1 className="text-2xl font-bold text-gradient">FidelizaGiro</h1>
             </div>
             <CardTitle className="text-xl">{campaign.name}</CardTitle>
-            
-            {/* Debug: Mostrar ID da campanha */}
-            <div className="text-xs text-gray-400">
-              ID: {campaign.id}
-            </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Formulário de Dados ANTES do giro */}
-            {showForm && !hasSpun && hasCustomFields && (
+            {/* FORMULÁRIO ANTES DO GIRO (collectDataBefore = true) */}
+            {showForm && !hasSpun && hasCustomFields && campaign.config.collectDataBefore && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
+                <p className="text-center text-sm text-gray-600 mb-4">
+                  Preencha seus dados para participar:
+                </p>
                 {campaign.config.customFields?.map((field) => (
                   <div key={field.id} className="space-y-2">
                     <Label htmlFor={field.id}>
@@ -404,8 +411,8 @@ const Campaign = () => {
               </form>
             )}
 
-            {/* Roda da Fortuna */}
-            {(!showForm || !hasCustomFields) && !hasSpun && (
+            {/* RODA DA FORTUNA */}
+            {(!showForm || !hasCustomFields || (dataCollected && campaign.config.collectDataBefore)) && !hasSpun && (
               <div className="text-center">
                 <SpinWheel
                   prizes={campaign.config.prizes}
@@ -416,7 +423,7 @@ const Campaign = () => {
               </div>
             )}
 
-            {/* Resultado */}
+            {/* RESULTADO DO PRÊMIO */}
             {hasSpun && wonPrize && (
               <div className="text-center space-y-6">
                 <div className="bg-gradient-to-br from-brand-gold to-yellow-500 p-6 rounded-xl text-white">
@@ -448,8 +455,8 @@ const Campaign = () => {
               </div>
             )}
 
-            {/* Formulário pós-giro (apenas se não coletou dados antes E não tem participationId válido) */}
-            {hasSpun && !campaign.config.collectDataBefore && !participationId && hasCustomFields && (
+            {/* FORMULÁRIO APÓS O GIRO (collectDataBefore = false) */}
+            {hasSpun && !campaign.config.collectDataBefore && !dataCollected && hasCustomFields && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <p className="text-center text-sm text-gray-600 mb-4">
                   Deixe seus dados para receber seu prêmio:
@@ -474,7 +481,7 @@ const Campaign = () => {
                   </div>
                 ))}
                 <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
-                  Finalizar
+                  Finalizar Participação
                 </Button>
               </form>
             )}
