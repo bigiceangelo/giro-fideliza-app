@@ -380,6 +380,16 @@ const Campaign = () => {
             <CardTitle className="text-xl">{campaign.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* DEBUG INFO - REMOVER EM PRODUÇÃO */}
+            <div className="bg-gray-100 p-2 rounded text-xs text-gray-600">
+              <p><strong>Debug:</strong></p>
+              <p>collectDataBefore: {campaign.config.collectDataBefore ? 'true' : 'false'}</p>
+              <p>hasSpun: {hasSpun ? 'true' : 'false'}</p>
+              <p>wonPrize: {wonPrize ? wonPrize.name : 'null'}</p>
+              <p>dataCollected: {dataCollected ? 'true' : 'false'}</p>
+              <p>hasCustomFields: {hasCustomFields ? 'true' : 'false'}</p>
+              <p>showForm: {showForm ? 'true' : 'false'}</p>
+            </div>
             {/* FORMULÁRIO ANTES DO GIRO (collectDataBefore = true) */}
             {showForm && !hasSpun && hasCustomFields && campaign.config.collectDataBefore && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
@@ -423,8 +433,8 @@ const Campaign = () => {
               </div>
             )}
 
-            {/* RESULTADO DO PRÊMIO */}
-            {hasSpun && wonPrize && (
+            {/* RESULTADO DO PRÊMIO - Só mostra se já coletou dados OU não precisa coletar */}
+            {hasSpun && wonPrize && (campaign.config.collectDataBefore || dataCollected || !hasCustomFields) && (
               <div className="text-center space-y-6">
                 <div className="bg-gradient-to-br from-brand-gold to-yellow-500 p-6 rounded-xl text-white">
                   <div className="text-4xl mb-2">🎉</div>
@@ -455,35 +465,46 @@ const Campaign = () => {
               </div>
             )}
 
-            {/* FORMULÁRIO APÓS O GIRO (collectDataBefore = false) */}
-            {hasSpun && !campaign.config.collectDataBefore && !dataCollected && hasCustomFields && (
-              <form onSubmit={handleFormSubmit} className="space-y-4">
-                <p className="text-center text-sm text-gray-600 mb-4">
-                  Deixe seus dados para receber seu prêmio:
-                </p>
-                {campaign.config.customFields?.map((field) => (
-                  <div key={field.id} className="space-y-2">
-                    <Label htmlFor={field.id}>
-                      {field.name}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </Label>
-                    <Input
-                      id={field.id}
-                      type={field.type}
-                      placeholder={field.placeholder}
-                      value={participantData[field.id] || ''}
-                      onChange={(e) => setParticipantData({
-                        ...participantData,
-                        [field.id]: e.target.value
-                      })}
-                      required={field.required}
-                    />
-                  </div>
-                ))}
-                <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
-                  Finalizar Participação
-                </Button>
-              </form>
+            {/* FORMULÁRIO APÓS O GIRO (collectDataBefore = false) - APARECE LOGO APÓS GANHAR */}
+            {hasSpun && wonPrize && !campaign.config.collectDataBefore && !dataCollected && hasCustomFields && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-brand-gold to-yellow-500 p-4 rounded-xl text-white text-center mb-4">
+                  <div className="text-3xl mb-2">🎉</div>
+                  <h3 className="text-lg font-bold mb-1">Parabéns!</h3>
+                  <p className="text-sm">Você ganhou: <strong>{wonPrize.name}</strong></p>
+                  {wonPrize.couponCode && (
+                    <p className="text-sm mt-2">Cupom: <strong>{wonPrize.couponCode}</strong></p>
+                  )}
+                </div>
+                
+                <form onSubmit={handleFormSubmit} className="space-y-4">
+                  <p className="text-center text-sm text-gray-600 mb-4">
+                    <strong>Para receber seu prêmio, preencha seus dados:</strong>
+                  </p>
+                  {campaign.config.customFields?.map((field) => (
+                    <div key={field.id} className="space-y-2">
+                      <Label htmlFor={field.id}>
+                        {field.name}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </Label>
+                      <Input
+                        id={field.id}
+                        type={field.type}
+                        placeholder={field.placeholder}
+                        value={participantData[field.id] || ''}
+                        onChange={(e) => setParticipantData({
+                          ...participantData,
+                          [field.id]: e.target.value
+                        })}
+                        required={field.required}
+                      />
+                    </div>
+                  ))}
+                  <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
+                    Finalizar e Receber Prêmio
+                  </Button>
+                </form>
+              </div>
             )}
           </CardContent>
         </Card>
