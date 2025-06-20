@@ -4,7 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye, Share2, Download, LogOut, Settings } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Plus, Eye, Share2, Download, LogOut, Settings, Edit, Trash2, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Campaign {
@@ -14,11 +16,37 @@ interface Campaign {
   participants: number;
   status: 'active' | 'draft';
   createdAt: string;
+  config?: {
+    prizes: any[];
+    collectDataBefore: boolean;
+    thankYouMessage: string;
+    wheelColor: string;
+    customFields: CustomField[];
+  };
+}
+
+interface CustomField {
+  id: string;
+  name: string;
+  type: 'text' | 'email' | 'phone' | 'number';
+  required: boolean;
+  placeholder: string;
+}
+
+interface Participant {
+  campaignId: string;
+  timestamp: string;
+  hasSpun: boolean;
+  prize?: string;
+  couponCode?: string;
+  [key: string]: any; // Para campos customizados
 }
 
 const Dashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -30,12 +58,35 @@ const Dashboard = () => {
     }
     setUser(JSON.parse(userData));
 
-    // Simulação de campanhas salvas
+    loadCampaigns();
+  }, [navigate]);
+
+  const loadCampaigns = () => {
     const savedCampaigns = localStorage.getItem('fidelizagiro_campaigns');
     if (savedCampaigns) {
-      setCampaigns(JSON.parse(savedCampaigns));
+      const campaignsData = JSON.parse(savedCampaigns);
+      
+      // Calcular participantes para cada campanha
+      const participationsData = localStorage.getItem('fidelizagiro_participations');
+      const participations = participationsData ? JSON.parse(participationsData) : [];
+      
+      const updatedCampaigns = campaignsData.map((campaign: Campaign) => ({
+        ...campaign,
+        participants: participations.filter((p: Participant) => p.campaignId === campaign.id).length
+      }));
+      
+      setCampaigns(updatedCampaigns);
     }
-  }, [navigate]);
+  };
+
+  const loadParticipants = (campaignId: string) => {
+    const participationsData = localStorage.getItem('fidelizagiro_participations');
+    if (participationsData) {
+      const allParticipations = JSON.parse(participationsData);
+      const campaignParticipants = allParticipations.filter((p: Participant) => p.campaignId === campaignId);
+      setParticipants(campaignParticipants);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('fidelizagiro_user');
@@ -47,10 +98,49 @@ const Dashboard = () => {
     navigate('/');
   };
 
+  const deleteCampaign = (campaignId: string) => {
+    const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
+    localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(updatedCampaigns));
+    setCampaigns(updatedCampaigns);
+    
+    toast({
+      title: 'Campanha deletada',
+      description: 'A campanha foi removida com sucesso',
+    });
+  };
+
   const exportParticipants = (campaignId: string) => {
+    const participationsData = localStorage.getItem('fidelizagiro_participations');
+    if (participationsData) {
+      const allParticipations = JSON.parse(participationsData);
+      const campaignParticipants = allParticipations.filter((p: Participant) => p.campaignId === campaignId);
+      
+      if (campaignParticipants.length === 0) {
+        toast({
+          title: 'Nenhum participante',
+          description: 'Esta campanha ainda não possui participantes',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Criar CSV
+      const headers = Object.keys(campaignParticipants[0]).join(',');
+      const rows = campaignParticipants.map(p => Object.values(p).join(',')).join('\n');
+      const csv = `${headers}\n${rows}`;
+      
+      // Download
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `participantes-${campaignId}.csv`;
+      a.click();
+    }
+    
     toast({
       title: 'Exportando participantes',
-      description: 'O arquivo CSV será baixado em breve',
+      description: 'O arquivo CSV foi baixado',
     });
   };
 
@@ -163,25 +253,92 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-4">
                     <span className="text-sm text-gray-500">
                       Criada em {new Date(campaign.createdAt).toLocaleDateString('pt-BR')}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2 mt-4">
+                  <div className="grid grid-cols-2 gap-2">
                     <Link to={`/campaign/${campaign.id}`}>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" className="w-full">
                         <Eye className="w-4 h-4 mr-2" />
                         Ver
                       </Button>
                     </Link>
-                    <Button variant="outline" size="sm">
+                    <Link to={`/edit-campaign/${campaign.id}`}>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Edit className="w-4 h-4 mr-2" />
+                        Editar
+                      </Button>
+                    </Link>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => {
+                            setSelectedCampaign(campaign.id);
+                            loadParticipants(campaign.id);
+                          }}
+                        >
+                          <Users className="w-4 h-4 mr-2" />
+                          Participantes
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Participantes - {campaign.name}</DialogTitle>
+                        </DialogHeader>
+                        {participants.length === 0 ? (
+                          <p className="text-center text-gray-500 py-8">Nenhum participante ainda</p>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Nome</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Telefone</TableHead>
+                                <TableHead>Prêmio</TableHead>
+                                <TableHead>Data</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {participants.map((participant, index) => (
+                                <TableRow key={index}>
+                                  <TableCell>{participant.name || 'N/A'}</TableCell>
+                                  <TableCell>{participant.email || 'N/A'}</TableCell>
+                                  <TableCell>{participant.phone || 'N/A'}</TableCell>
+                                  <TableCell>{participant.prize || 'Não girou'}</TableCell>
+                                  <TableCell>{new Date(participant.timestamp).toLocaleDateString('pt-BR')}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => exportParticipants(campaign.id)}
+                      className="w-full"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      CSV
+                    </Button>
+                    <Button variant="outline" size="sm" className="w-full">
                       <Share2 className="w-4 h-4 mr-2" />
                       Compartilhar
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => exportParticipants(campaign.id)}>
-                      <Download className="w-4 h-4 mr-2" />
-                      CSV
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => deleteCampaign(campaign.id)}
+                      className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Deletar
                     </Button>
                   </div>
                 </CardContent>

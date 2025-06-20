@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,26 +26,57 @@ interface CustomField {
   placeholder: string;
 }
 
-const CreateCampaign = () => {
+interface CampaignConfig {
+  prizes: Prize[];
+  collectDataBefore: boolean;
+  thankYouMessage: string;
+  wheelColor: string;
+  customFields: CustomField[];
+}
+
+const EditCampaign = () => {
+  const { id } = useParams();
   const [campaignName, setCampaignName] = useState('');
-  const [prizes, setPrizes] = useState<Prize[]>([
-    { id: '1', name: 'Desconto 10%', percentage: 30, couponCode: 'DESC10' },
-    { id: '2', name: 'Desconto 20%', percentage: 20, couponCode: 'DESC20' },
-    { id: '3', name: 'Brinde Grátis', percentage: 15, couponCode: 'BRINDE' },
-    { id: '4', name: 'Tente Novamente', percentage: 35, couponCode: '' }
-  ]);
+  const [prizes, setPrizes] = useState<Prize[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([
     { id: '1', name: 'Nome', type: 'text', required: true, placeholder: 'Seu nome completo' },
     { id: '2', name: 'Email', type: 'email', required: true, placeholder: 'seu@email.com' },
     { id: '3', name: 'WhatsApp', type: 'phone', required: true, placeholder: '(11) 99999-9999' }
   ]);
   const [collectDataBefore, setCollectDataBefore] = useState(true);
-  const [thankYouMessage, setThankYouMessage] = useState('Obrigado por participar da nossa promoção!');
+  const [thankYouMessage, setThankYouMessage] = useState('');
   const [wheelColor, setWheelColor] = useState('#007BFF');
   const [isLoading, setIsLoading] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Carregar dados da campanha
+    const campaigns = localStorage.getItem('fidelizagiro_campaigns');
+    if (campaigns) {
+      const parsedCampaigns = JSON.parse(campaigns);
+      const campaign = parsedCampaigns.find((c: any) => c.id === id);
+      
+      if (campaign) {
+        setCampaignName(campaign.name);
+        if (campaign.config) {
+          setPrizes(campaign.config.prizes || []);
+          setCollectDataBefore(campaign.config.collectDataBefore ?? true);
+          setThankYouMessage(campaign.config.thankYouMessage || '');
+          setWheelColor(campaign.config.wheelColor || '#007BFF');
+          setCustomFields(campaign.config.customFields || customFields);
+        }
+      } else {
+        toast({
+          title: 'Campanha não encontrada',
+          description: 'Redirecionando para o dashboard',
+          variant: 'destructive',
+        });
+        navigate('/dashboard');
+      }
+    }
+  }, [id, navigate]);
 
   const addPrize = () => {
     const newPrize: Prize = {
@@ -56,13 +88,13 @@ const CreateCampaign = () => {
     setPrizes([...prizes, newPrize]);
   };
 
-  const removePrize = (id: string) => {
-    setPrizes(prizes.filter(prize => prize.id !== id));
+  const removePrize = (prizeId: string) => {
+    setPrizes(prizes.filter(prize => prize.id !== prizeId));
   };
 
-  const updatePrize = (id: string, field: keyof Prize, value: string | number) => {
+  const updatePrize = (prizeId: string, field: keyof Prize, value: string | number) => {
     setPrizes(prizes.map(prize => 
-      prize.id === id ? { ...prize, [field]: value } : prize
+      prize.id === prizeId ? { ...prize, [field]: value } : prize
     ));
   };
 
@@ -77,13 +109,13 @@ const CreateCampaign = () => {
     setCustomFields([...customFields, newField]);
   };
 
-  const removeCustomField = (id: string) => {
-    setCustomFields(customFields.filter(field => field.id !== id));
+  const removeCustomField = (fieldId: string) => {
+    setCustomFields(customFields.filter(field => field.id !== fieldId));
   };
 
-  const updateCustomField = (id: string, field: keyof CustomField, value: string | boolean) => {
+  const updateCustomField = (fieldId: string, field: keyof CustomField, value: string | boolean) => {
     setCustomFields(customFields.map(f => 
-      f.id === id ? { ...f, [field]: value } : f
+      f.id === fieldId ? { ...f, [field]: value } : f
     ));
   };
 
@@ -129,37 +161,40 @@ const CreateCampaign = () => {
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const newCampaign = {
-        id: Date.now().toString(),
-        name: campaignName,
-        prizes: prizes.length,
-        participants: 0,
-        status: 'active' as const,
-        createdAt: new Date().toISOString(),
-        config: {
-          prizes,
-          collectDataBefore,
-          thankYouMessage,
-          wheelColor,
-          customFields
-        }
-      };
+      // Atualizar campanha existente
+      const campaigns = localStorage.getItem('fidelizagiro_campaigns');
+      if (campaigns) {
+        const parsedCampaigns = JSON.parse(campaigns);
+        const updatedCampaigns = parsedCampaigns.map((campaign: any) => {
+          if (campaign.id === id) {
+            return {
+              ...campaign,
+              name: campaignName,
+              prizes: prizes.length,
+              config: {
+                prizes,
+                collectDataBefore,
+                thankYouMessage,
+                wheelColor,
+                customFields
+              }
+            };
+          }
+          return campaign;
+        });
 
-      // Salvar no localStorage (em produção seria uma API)
-      const existingCampaigns = localStorage.getItem('fidelizagiro_campaigns');
-      const campaigns = existingCampaigns ? JSON.parse(existingCampaigns) : [];
-      campaigns.push(newCampaign);
-      localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(campaigns));
+        localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(updatedCampaigns));
 
-      toast({
-        title: 'Campanha criada com sucesso!',
-        description: 'Sua campanha está pronta para receber participantes',
-      });
+        toast({
+          title: 'Campanha atualizada com sucesso!',
+          description: 'As alterações foram salvas',
+        });
 
-      navigate('/dashboard');
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast({
-        title: 'Erro ao criar campanha',
+        title: 'Erro ao atualizar campanha',
         description: 'Tente novamente em alguns instantes',
         variant: 'destructive',
       });
@@ -183,7 +218,7 @@ const CreateCampaign = () => {
 
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-2xl">Criar Nova Campanha</CardTitle>
+              <CardTitle className="text-2xl">Editar Campanha</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -396,7 +431,7 @@ const CreateCampaign = () => {
                     className="bg-brand-blue hover:bg-blue-600"
                     disabled={isLoading || getTotalPercentage() !== 100}
                   >
-                    {isLoading ? 'Criando...' : 'Criar Campanha'}
+                    {isLoading ? 'Salvando...' : 'Salvar Alterações'}
                   </Button>
                 </div>
               </form>
@@ -408,4 +443,4 @@ const CreateCampaign = () => {
   );
 };
 
-export default CreateCampaign;
+export default EditCampaign;

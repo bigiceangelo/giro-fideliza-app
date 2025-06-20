@@ -16,6 +16,14 @@ interface Prize {
   couponCode: string;
 }
 
+interface CustomField {
+  id: string;
+  name: string;
+  type: 'text' | 'email' | 'phone' | 'number';
+  required: boolean;
+  placeholder: string;
+}
+
 interface CampaignData {
   id: string;
   name: string;
@@ -24,17 +32,14 @@ interface CampaignData {
     collectDataBefore: boolean;
     thankYouMessage: string;
     wheelColor: string;
+    customFields: CustomField[];
   };
 }
 
 const Campaign = () => {
   const { id } = useParams();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
-  const [participantData, setParticipantData] = useState({
-    name: '',
-    email: '',
-    phone: ''
-  });
+  const [participantData, setParticipantData] = useState<{[key: string]: string}>({});
   const [hasSpun, setHasSpun] = useState(false);
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -51,15 +56,28 @@ const Campaign = () => {
       if (foundCampaign) {
         setCampaign(foundCampaign);
         setShowForm(foundCampaign.config.collectDataBefore);
+        
+        // Inicializar dados do participante com campos vazios
+        const initialData: {[key: string]: string} = {};
+        foundCampaign.config.customFields.forEach(field => {
+          initialData[field.id] = '';
+        });
+        setParticipantData(initialData);
       }
     }
   }, [id]);
 
   const saveParticipantData = () => {
-    if (!isDataSaved && participantData.name && participantData.email && participantData.phone) {
+    if (!isDataSaved && campaign) {
+      // Converter dados do participante para formato legível
+      const readableData: {[key: string]: string} = {};
+      campaign.config.customFields.forEach(field => {
+        readableData[field.name.toLowerCase()] = participantData[field.id] || '';
+      });
+
       const participation = {
         campaignId: id,
-        ...participantData,
+        ...readableData,
         timestamp: new Date().toISOString(),
         hasSpun: false
       };
@@ -83,9 +101,17 @@ const Campaign = () => {
     const existingParticipations = localStorage.getItem('fidelizagiro_participations');
     const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
     
+    // Converter dados do participante para formato legível
+    const readableData: {[key: string]: string} = {};
+    if (campaign) {
+      campaign.config.customFields.forEach(field => {
+        readableData[field.name.toLowerCase()] = participantData[field.id] || '';
+      });
+    }
+    
     // Encontrar a participação atual e atualizá-la
     const currentParticipationIndex = participations.findIndex(
-      (p: any) => p.campaignId === id && p.email === participantData.email && !p.hasSpun
+      (p: any) => p.campaignId === id && p.email === readableData.email && !p.hasSpun
     );
     
     if (currentParticipationIndex >= 0) {
@@ -100,7 +126,7 @@ const Campaign = () => {
       // Se não encontrou, criar nova participação
       participations.push({
         campaignId: id,
-        ...participantData,
+        ...readableData,
         prize: prize.name,
         couponCode: prize.couponCode,
         hasSpun: true,
@@ -121,14 +147,25 @@ const Campaign = () => {
     setIsSpinning(true);
   };
 
+  const validateForm = () => {
+    if (!campaign) return false;
+    
+    for (const field of campaign.config.customFields) {
+      if (field.required && !participantData[field.id]?.trim()) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validar se todos os campos estão preenchidos
-    if (!participantData.name || !participantData.email || !participantData.phone) {
+    // Validar se todos os campos obrigatórios estão preenchidos
+    if (!validateForm()) {
       toast({
         title: 'Erro',
-        description: 'Por favor, preencha todos os campos.',
+        description: 'Por favor, preencha todos os campos obrigatórios.',
         variant: 'destructive'
       });
       return;
@@ -151,7 +188,16 @@ const Campaign = () => {
   const resetWheel = () => {
     setHasSpun(false);
     setWonPrize(null);
-    setParticipantData({ name: '', email: '', phone: '' });
+    
+    // Resetar dados do participante
+    if (campaign) {
+      const initialData: {[key: string]: string} = {};
+      campaign.config.customFields.forEach(field => {
+        initialData[field.id] = '';
+      });
+      setParticipantData(initialData);
+    }
+    
     setShowForm(campaign?.config.collectDataBefore || false);
     setIsDataSaved(false);
   };
@@ -202,37 +248,25 @@ const Campaign = () => {
             {/* Formulário de Dados */}
             {showForm && !hasSpun && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input
-                    id="name"
-                    placeholder="Seu nome completo"
-                    value={participantData.name}
-                    onChange={(e) => setParticipantData({...participantData, name: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={participantData.email}
-                    onChange={(e) => setParticipantData({...participantData, email: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">WhatsApp</Label>
-                  <Input
-                    id="phone"
-                    placeholder="(11) 99999-9999"
-                    value={participantData.phone}
-                    onChange={(e) => setParticipantData({...participantData, phone: e.target.value})}
-                    required
-                  />
-                </div>
+                {campaign.config.customFields.map((field) => (
+                  <div key={field.id} className="space-y-2">
+                    <Label htmlFor={field.id}>
+                      {field.name}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </Label>
+                    <Input
+                      id={field.id}
+                      type={field.type}
+                      placeholder={field.placeholder}
+                      value={participantData[field.id] || ''}
+                      onChange={(e) => setParticipantData({
+                        ...participantData,
+                        [field.id]: e.target.value
+                      })}
+                      required={field.required}
+                    />
+                  </div>
+                ))}
                 <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
                   {campaign.config.collectDataBefore ? 'Continuar' : 'Girar a Roda!'}
                 </Button>
@@ -289,37 +323,25 @@ const Campaign = () => {
                 <p className="text-center text-sm text-gray-600 mb-4">
                   Deixe seus dados para receber seu prêmio:
                 </p>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input
-                    id="name"
-                    placeholder="Seu nome completo"
-                    value={participantData.name}
-                    onChange={(e) => setParticipantData({...participantData, name: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={participantData.email}
-                    onChange={(e) => setParticipantData({...participantData, email: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">WhatsApp</Label>
-                  <Input
-                    id="phone"
-                    placeholder="(11) 99999-9999"
-                    value={participantData.phone}
-                    onChange={(e) => setParticipantData({...participantData, phone: e.target.value})}
-                    required
-                  />
-                </div>
+                {campaign.config.customFields.map((field) => (
+                  <div key={field.id} className="space-y-2">
+                    <Label htmlFor={field.id}>
+                      {field.name}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </Label>
+                    <Input
+                      id={field.id}
+                      type={field.type}
+                      placeholder={field.placeholder}
+                      value={participantData[field.id] || ''}
+                      onChange={(e) => setParticipantData({
+                        ...participantData,
+                        [field.id]: e.target.value
+                      })}
+                      required={field.required}
+                    />
+                  </div>
+                ))}
                 <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
                   Finalizar
                 </Button>
