@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Share2, RotateCcw } from 'lucide-react';
+import { Share2, RotateCcw, Play, Info, Gift } from 'lucide-react';
 import SpinWheel from '@/components/SpinWheel';
 
 interface Prize {
@@ -33,6 +32,9 @@ interface CampaignData {
     thankYouMessage: string;
     wheelColor: string;
     customFields?: CustomField[];
+    description?: string;
+    rules?: string;
+    prizeDescription?: string;
   };
 }
 
@@ -40,6 +42,7 @@ const Campaign = () => {
   const { id } = useParams();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCampaignInfo, setShowCampaignInfo] = useState(true);
   const [participantData, setParticipantData] = useState<{[key: string]: string}>({});
   const [hasSpun, setHasSpun] = useState(false);
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
@@ -76,7 +79,10 @@ const Campaign = () => {
             collectDataBefore: false,
             thankYouMessage: 'Obrigado por participar!',
             wheelColor: '#3B82F6',
-            customFields: []
+            customFields: [],
+            description: '',
+            rules: '',
+            prizeDescription: ''
           };
           
           const campaign = {
@@ -89,8 +95,6 @@ const Campaign = () => {
           };
           
           console.log('Final campaign object:', campaign);
-          console.log('Collect data before spin:', campaign.config.collectDataBefore);
-          
           setCampaign(campaign);
           
           // Initialize participant data
@@ -141,7 +145,6 @@ const Campaign = () => {
       })
     };
 
-    // Add participant data if available
     if (campaign.config.customFields && campaign.config.customFields.length > 0) {
       const readableData: {[key: string]: string} = {};
       campaign.config.customFields.forEach(field => {
@@ -192,14 +195,12 @@ const Campaign = () => {
   const handlePrizeWon = (prize: Prize) => {
     console.log('=== PRIZE WON ===');
     console.log('Prize:', prize.name);
-    console.log('Collect data before?', campaign?.config.collectDataBefore);
     
     setWonPrize(prize);
     setHasSpun(true);
     setIsSpinning(false);
     
     if (campaign?.config.collectDataBefore && participationId) {
-      // Data already collected, just update with prize
       const existingParticipations = localStorage.getItem('fidelizagiro_participations');
       const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
       
@@ -218,7 +219,6 @@ const Campaign = () => {
         console.log('Updated existing participation with prize');
       }
     } else {
-      // Create new participation with prize (data to be collected later or no data needed)
       createParticipation(prize);
     }
 
@@ -252,7 +252,6 @@ const Campaign = () => {
     }
 
     if (campaign?.config.collectDataBefore && !hasSpun) {
-      // BEFORE SPIN: Collect data first, then allow spin
       createParticipation();
       setDataCollected(true);
       toast({
@@ -260,7 +259,6 @@ const Campaign = () => {
         description: 'Agora você pode girar a roda da fortuna!',
       });
     } else if (hasSpun && participationId) {
-      // AFTER SPIN: Update existing participation with data
       updateParticipationWithData(participationId);
       setDataCollected(true);
       toast({
@@ -275,6 +273,7 @@ const Campaign = () => {
     setWonPrize(null);
     setParticipationId(null);
     setDataCollected(false);
+    setShowCampaignInfo(true);
     
     if (campaign?.config.customFields) {
       const initialData: {[key: string]: string} = {};
@@ -299,6 +298,10 @@ const Campaign = () => {
         description: 'O link da campanha foi copiado para a área de transferência',
       });
     }
+  };
+
+  const startParticipation = () => {
+    setShowCampaignInfo(false);
   };
 
   if (loading) {
@@ -329,24 +332,97 @@ const Campaign = () => {
     );
   }
 
-  // Check if has custom fields
-  const hasCustomFields = campaign.config.customFields && campaign.config.customFields.length > 0;
+  // Show campaign information first
+  if (showCampaignInfo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-lime-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <Card className="shadow-xl border-0">
+            <CardHeader className="text-center">
+              <div className="flex items-center justify-center space-x-2 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-brand-blue to-brand-lime rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                    <div className="w-3 h-3 bg-brand-gold rounded-full"></div>
+                  </div>
+                </div>
+                <h1 className="text-2xl font-bold text-gradient">FidelizaGiro</h1>
+              </div>
+              <CardTitle className="text-2xl">{campaign.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Descrição da Campanha */}
+              {campaign.config.description && (
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Info className="w-5 h-5 text-brand-blue" />
+                    <h3 className="text-lg font-semibold">Sobre a Campanha</h3>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-gray-700 whitespace-pre-wrap">{campaign.config.description}</p>
+                  </div>
+                </div>
+              )}
 
-  // Determine what to show
+              {/* Prêmios Disponíveis */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Gift className="w-5 h-5 text-brand-gold" />
+                  <h3 className="text-lg font-semibold">Prêmios Disponíveis</h3>
+                </div>
+                <div className="bg-gradient-to-br from-brand-gold to-yellow-100 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {campaign.config.prizes.map((prize, index) => (
+                      <div key={index} className="bg-white p-3 rounded-lg shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-gray-800">{prize.name}</span>
+                          <span className="text-sm bg-brand-blue text-white px-2 py-1 rounded">
+                            {prize.percentage}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {campaign.config.prizeDescription && (
+                  <div className="bg-yellow-50 p-3 rounded-lg">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{campaign.config.prizeDescription}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Regras */}
+              {campaign.config.rules && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Regras da Campanha</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-gray-700 whitespace-pre-wrap text-sm">{campaign.config.rules}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Botão para iniciar */}
+              <div className="text-center pt-4">
+                <Button 
+                  onClick={startParticipation} 
+                  className="w-full bg-gradient-to-r from-brand-blue to-brand-lime hover:from-blue-600 hover:to-green-600 text-white font-bold py-4 px-6 rounded-lg text-lg"
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Participar da Promoção
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Participation flow (existing logic)
+  const hasCustomFields = campaign.config.customFields && campaign.config.customFields.length > 0;
   const shouldShowPreSpinForm = hasCustomFields && campaign.config.collectDataBefore && !dataCollected && !hasSpun;
   const shouldShowWheel = (!hasCustomFields || !campaign.config.collectDataBefore || dataCollected) && !hasSpun;
   const shouldShowPostSpinForm = hasCustomFields && !campaign.config.collectDataBefore && hasSpun && !dataCollected;
   const shouldShowResult = hasSpun && wonPrize && (campaign.config.collectDataBefore || dataCollected || !hasCustomFields);
-
-  console.log('=== RENDER STATES ===');
-  console.log('hasCustomFields:', hasCustomFields);
-  console.log('collectDataBefore:', campaign.config.collectDataBefore);
-  console.log('hasSpun:', hasSpun);
-  console.log('dataCollected:', dataCollected);
-  console.log('shouldShowPreSpinForm:', shouldShowPreSpinForm);
-  console.log('shouldShowWheel:', shouldShowWheel);
-  console.log('shouldShowPostSpinForm:', shouldShowPostSpinForm);
-  console.log('shouldShowResult:', shouldShowResult);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-lime-50 flex items-center justify-center p-4">
@@ -364,20 +440,7 @@ const Campaign = () => {
             <CardTitle className="text-xl">{campaign.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* DEBUG INFO */}
-            <div className="bg-gray-100 p-2 rounded text-xs text-gray-600">
-              <p><strong>Debug Flow:</strong></p>
-              <p>collectDataBefore: {campaign.config.collectDataBefore ? 'true' : 'false'}</p>
-              <p>hasSpun: {hasSpun ? 'true' : 'false'}</p>
-              <p>dataCollected: {dataCollected ? 'true' : 'false'}</p>
-              <p>hasCustomFields: {hasCustomFields ? 'true' : 'false'}</p>
-              <p>showPreForm: {shouldShowPreSpinForm ? 'true' : 'false'}</p>
-              <p>showWheel: {shouldShowWheel ? 'true' : 'false'}</p>
-              <p>showPostForm: {shouldShowPostSpinForm ? 'true' : 'false'}</p>
-              <p>showResult: {shouldShowResult ? 'true' : 'false'}</p>
-            </div>
-
-            {/* PRE-SPIN FORM (collectDataBefore = true) */}
+            {/* PRE-SPIN FORM */}
             {shouldShowPreSpinForm && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <p className="text-center text-sm text-gray-600 mb-4">
@@ -420,7 +483,7 @@ const Campaign = () => {
               </div>
             )}
 
-            {/* POST-SPIN FORM (collectDataBefore = false) */}
+            {/* POST-SPIN FORM */}
             {shouldShowPostSpinForm && (
               <div className="space-y-4">
                 <div className="bg-gradient-to-br from-brand-gold to-yellow-500 p-4 rounded-xl text-white text-center mb-4">
