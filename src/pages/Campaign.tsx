@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -43,14 +44,13 @@ const Campaign = () => {
   const [hasSpun, setHasSpun] = useState(false);
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [showForm, setShowForm] = useState(true);
   const [participationId, setParticipationId] = useState<string | null>(null);
-  const [dataCollected, setDataCollected] = useState(false); // Nova flag para controlar se os dados foram coletados
+  const [dataCollected, setDataCollected] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('=== CAMPAIGN DEBUG START ===');
-    console.log('Campaign ID from URL:', id);
+    console.log('=== CAMPAIGN LOAD START ===');
+    console.log('Campaign ID:', id);
     
     const loadCampaign = () => {
       try {
@@ -58,7 +58,7 @@ const Campaign = () => {
         console.log('Raw campaigns from localStorage:', campaigns);
         
         if (!campaigns) {
-          console.log('Nenhuma campanha encontrada no localStorage');
+          console.log('No campaigns found');
           setCampaign(null);
           setLoading(false);
           return;
@@ -67,12 +67,8 @@ const Campaign = () => {
         const parsedCampaigns = JSON.parse(campaigns);
         console.log('Parsed campaigns:', parsedCampaigns);
         
-        const foundCampaign = parsedCampaigns.find((c: CampaignData) => {
-          console.log(`Comparando: "${c.id}" === "${id}"`);
-          return c.id === id;
-        });
-        
-        console.log('Campanha encontrada:', foundCampaign);
+        const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
+        console.log('Found campaign:', foundCampaign);
         
         if (foundCampaign) {
           const defaultConfig = {
@@ -97,13 +93,6 @@ const Campaign = () => {
           
           setCampaign(campaign);
           
-          // Definir se deve mostrar formulário baseado na configuração
-          if (campaign.config.collectDataBefore) {
-            setShowForm(true); // Mostrar formulário antes do giro
-          } else {
-            setShowForm(false); // Não mostrar formulário antes, apenas a roda
-          }
-          
           // Initialize participant data
           const initialData: {[key: string]: string} = {};
           campaign.config.customFields.forEach(field => {
@@ -111,48 +100,58 @@ const Campaign = () => {
           });
           setParticipantData(initialData);
           setLoading(false);
-          console.log('=== CAMPAIGN DEBUG END (SUCCESS) ===');
-          return;
+          console.log('=== CAMPAIGN LOAD SUCCESS ===');
+        } else {
+          console.log('Campaign not found with ID:', id);
+          setCampaign(null);
+          setLoading(false);
+          console.log('=== CAMPAIGN LOAD NOT FOUND ===');
         }
         
-        console.log('Campanha não encontrada com ID:', id);
-        setCampaign(null);
-        setLoading(false);
-        console.log('=== CAMPAIGN DEBUG END (NOT FOUND) ===');
-        
       } catch (error) {
-        console.error('Erro ao carregar campanha:', error);
+        console.error('Error loading campaign:', error);
         setCampaign(null);
         setLoading(false);
-        console.log('=== CAMPAIGN DEBUG END (ERROR) ===');
+        console.log('=== CAMPAIGN LOAD ERROR ===');
       }
     };
 
     if (id) {
       loadCampaign();
     } else {
-      console.log('ID não fornecido na URL');
+      console.log('No ID provided');
       setLoading(false);
     }
   }, [id]);
 
-  const createParticipation = () => {
-    if (!campaign || !campaign.config.customFields || participationId) return null;
+  const createParticipation = (prize?: Prize) => {
+    if (!campaign || !id) return null;
 
     const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    const readableData: {[key: string]: string} = {};
-    campaign.config.customFields.forEach(field => {
-      readableData[field.name.toLowerCase()] = participantData[field.id] || '';
-    });
-
     const participation = {
       id: newParticipationId,
       campaignId: id,
-      ...readableData,
       timestamp: new Date().toISOString(),
-      hasSpun: false
+      hasSpun: !!prize,
+      ...(prize && {
+        prize: prize.name,
+        couponCode: prize.couponCode,
+        spinTimestamp: new Date().toISOString()
+      })
     };
+
+    // Add participant data if available
+    if (campaign.config.customFields && campaign.config.customFields.length > 0) {
+      const readableData: {[key: string]: string} = {};
+      campaign.config.customFields.forEach(field => {
+        const value = participantData[field.id] || '';
+        if (value) {
+          readableData[field.name.toLowerCase()] = value;
+        }
+      });
+      Object.assign(participation, readableData);
+    }
     
     const existingParticipations = localStorage.getItem('fidelizagiro_participations');
     const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
@@ -160,64 +159,67 @@ const Campaign = () => {
     localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
     
     setParticipationId(newParticipationId);
-    console.log('Participação criada:', participation);
+    console.log('Participation created:', participation);
     
     return newParticipationId;
   };
 
-  const updateParticipationWithPrize = (participationId: string, prize: Prize) => {
+  const updateParticipationWithData = (participationId: string) => {
+    if (!campaign?.config.customFields) return;
+
     const existingParticipations = localStorage.getItem('fidelizagiro_participations');
     const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
     
     const participationIndex = participations.findIndex((p: any) => p.id === participationId);
     
     if (participationIndex >= 0) {
+      const readableData: {[key: string]: string} = {};
+      campaign.config.customFields.forEach(field => {
+        readableData[field.name.toLowerCase()] = participantData[field.id] || '';
+      });
+      
       participations[participationIndex] = {
         ...participations[participationIndex],
-        prize: prize.name,
-        couponCode: prize.couponCode,
-        hasSpun: true,
-        spinTimestamp: new Date().toISOString()
+        ...readableData,
+        dataCollectedAt: new Date().toISOString()
       };
       
       localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-      console.log('Participação atualizada com prêmio:', participations[participationIndex]);
+      console.log('Participation updated with data:', participations[participationIndex]);
     }
   };
 
   const handlePrizeWon = (prize: Prize) => {
+    console.log('=== PRIZE WON ===');
+    console.log('Prize:', prize.name);
+    console.log('Collect data before?', campaign?.config.collectDataBefore);
+    
     setWonPrize(prize);
     setHasSpun(true);
     setIsSpinning(false);
     
-    console.log('Prêmio ganho:', prize.name);
-    console.log('Coleta dados antes?', campaign?.config.collectDataBefore);
-    console.log('Tem campos customizados?', campaign?.config.customFields?.length || 0);
-    
-    if (participationId) {
-      // Se já temos uma participação (dados coletados antes), apenas atualizamos com o prêmio
-      updateParticipationWithPrize(participationId, prize);
-    } else {
-      // Se não coletou dados antes, criamos participação básica com o prêmio
-      const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const participation = {
-        id: newParticipationId,
-        campaignId: id,
-        prize: prize.name,
-        couponCode: prize.couponCode,
-        hasSpun: true,
-        timestamp: new Date().toISOString(),
-        spinTimestamp: new Date().toISOString()
-      };
-      
+    if (campaign?.config.collectDataBefore && participationId) {
+      // Data already collected, just update with prize
       const existingParticipations = localStorage.getItem('fidelizagiro_participations');
       const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-      participations.push(participation);
-      localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
       
-      setParticipationId(newParticipationId);
-      console.log('Participação criada após giro:', participation);
+      const participationIndex = participations.findIndex((p: any) => p.id === participationId);
+      
+      if (participationIndex >= 0) {
+        participations[participationIndex] = {
+          ...participations[participationIndex],
+          prize: prize.name,
+          couponCode: prize.couponCode,
+          hasSpun: true,
+          spinTimestamp: new Date().toISOString()
+        };
+        
+        localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
+        console.log('Updated existing participation with prize');
+      }
+    } else {
+      // Create new participation with prize (data to be collected later or no data needed)
+      createParticipation(prize);
     }
 
     toast({
@@ -226,12 +228,8 @@ const Campaign = () => {
     });
   };
 
-  const startSpin = () => {
-    setIsSpinning(true);
-  };
-
   const validateForm = () => {
-    if (!campaign || !campaign.config.customFields) return true;
+    if (!campaign?.config.customFields) return true;
     
     for (const field of campaign.config.customFields) {
       if (field.required && !participantData[field.id]?.trim()) {
@@ -254,44 +252,21 @@ const Campaign = () => {
     }
 
     if (campaign?.config.collectDataBefore && !hasSpun) {
-      // ANTES DO GIRO: Coletar dados e depois permitir girar
+      // BEFORE SPIN: Collect data first, then allow spin
       createParticipation();
-      setShowForm(false);
       setDataCollected(true);
       toast({
         title: 'Dados salvos!',
         description: 'Agora você pode girar a roda da fortuna!',
       });
-    } else if (hasSpun && !campaign?.config.collectDataBefore && participationId) {
-      // APÓS O GIRO: Atualizar participação existente com os dados
-      const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-      const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-      
-      const participationIndex = participations.findIndex((p: any) => p.id === participationId);
-      
-      if (participationIndex >= 0 && campaign.config.customFields) {
-        const readableData: {[key: string]: string} = {};
-        campaign.config.customFields.forEach(field => {
-          readableData[field.name.toLowerCase()] = participantData[field.id] || '';
-        });
-        
-        participations[participationIndex] = {
-          ...participations[participationIndex],
-          ...readableData
-        };
-        
-        localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-        console.log('Dados adicionados à participação existente:', participations[participationIndex]);
-      }
-      
+    } else if (hasSpun && participationId) {
+      // AFTER SPIN: Update existing participation with data
+      updateParticipationWithData(participationId);
       setDataCollected(true);
       toast({
         title: 'Dados salvos!',
         description: 'Obrigado por participar!',
       });
-    } else {
-      // Caso padrão - apenas girar (não deveria chegar aqui normalmente)
-      startSpin();
     }
   };
 
@@ -301,19 +276,12 @@ const Campaign = () => {
     setParticipationId(null);
     setDataCollected(false);
     
-    if (campaign && campaign.config.customFields) {
+    if (campaign?.config.customFields) {
       const initialData: {[key: string]: string} = {};
       campaign.config.customFields.forEach(field => {
         initialData[field.id] = '';
       });
       setParticipantData(initialData);
-    }
-    
-    // Resetar formulário baseado na configuração
-    if (campaign?.config.collectDataBefore) {
-      setShowForm(true); // Mostrar formulário antes do giro
-    } else {
-      setShowForm(false); // Não mostrar formulário antes, apenas a roda
     }
   };
 
@@ -361,8 +329,24 @@ const Campaign = () => {
     );
   }
 
-  // Se não tem campos customizados, não precisa de formulários
+  // Check if has custom fields
   const hasCustomFields = campaign.config.customFields && campaign.config.customFields.length > 0;
+
+  // Determine what to show
+  const shouldShowPreSpinForm = hasCustomFields && campaign.config.collectDataBefore && !dataCollected && !hasSpun;
+  const shouldShowWheel = (!hasCustomFields || !campaign.config.collectDataBefore || dataCollected) && !hasSpun;
+  const shouldShowPostSpinForm = hasCustomFields && !campaign.config.collectDataBefore && hasSpun && !dataCollected;
+  const shouldShowResult = hasSpun && wonPrize && (campaign.config.collectDataBefore || dataCollected || !hasCustomFields);
+
+  console.log('=== RENDER STATES ===');
+  console.log('hasCustomFields:', hasCustomFields);
+  console.log('collectDataBefore:', campaign.config.collectDataBefore);
+  console.log('hasSpun:', hasSpun);
+  console.log('dataCollected:', dataCollected);
+  console.log('shouldShowPreSpinForm:', shouldShowPreSpinForm);
+  console.log('shouldShowWheel:', shouldShowWheel);
+  console.log('shouldShowPostSpinForm:', shouldShowPostSpinForm);
+  console.log('shouldShowResult:', shouldShowResult);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-lime-50 flex items-center justify-center p-4">
@@ -380,18 +364,21 @@ const Campaign = () => {
             <CardTitle className="text-xl">{campaign.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* DEBUG INFO - REMOVER EM PRODUÇÃO */}
+            {/* DEBUG INFO */}
             <div className="bg-gray-100 p-2 rounded text-xs text-gray-600">
-              <p><strong>Debug:</strong></p>
+              <p><strong>Debug Flow:</strong></p>
               <p>collectDataBefore: {campaign.config.collectDataBefore ? 'true' : 'false'}</p>
               <p>hasSpun: {hasSpun ? 'true' : 'false'}</p>
-              <p>wonPrize: {wonPrize ? wonPrize.name : 'null'}</p>
               <p>dataCollected: {dataCollected ? 'true' : 'false'}</p>
               <p>hasCustomFields: {hasCustomFields ? 'true' : 'false'}</p>
-              <p>showForm: {showForm ? 'true' : 'false'}</p>
+              <p>showPreForm: {shouldShowPreSpinForm ? 'true' : 'false'}</p>
+              <p>showWheel: {shouldShowWheel ? 'true' : 'false'}</p>
+              <p>showPostForm: {shouldShowPostSpinForm ? 'true' : 'false'}</p>
+              <p>showResult: {shouldShowResult ? 'true' : 'false'}</p>
             </div>
-            {/* FORMULÁRIO ANTES DO GIRO (collectDataBefore = true) */}
-            {showForm && !hasSpun && hasCustomFields && campaign.config.collectDataBefore && (
+
+            {/* PRE-SPIN FORM (collectDataBefore = true) */}
+            {shouldShowPreSpinForm && (
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <p className="text-center text-sm text-gray-600 mb-4">
                   Preencha seus dados para participar:
@@ -421,8 +408,8 @@ const Campaign = () => {
               </form>
             )}
 
-            {/* RODA DA FORTUNA */}
-            {(!showForm || !hasCustomFields || (dataCollected && campaign.config.collectDataBefore)) && !hasSpun && (
+            {/* SPIN WHEEL */}
+            {shouldShowWheel && (
               <div className="text-center">
                 <SpinWheel
                   prizes={campaign.config.prizes}
@@ -433,8 +420,50 @@ const Campaign = () => {
               </div>
             )}
 
-            {/* RESULTADO DO PRÊMIO - Só mostra se já coletou dados OU não precisa coletar */}
-            {hasSpun && wonPrize && (campaign.config.collectDataBefore || dataCollected || !hasCustomFields) && (
+            {/* POST-SPIN FORM (collectDataBefore = false) */}
+            {shouldShowPostSpinForm && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-brand-gold to-yellow-500 p-4 rounded-xl text-white text-center mb-4">
+                  <div className="text-3xl mb-2">🎉</div>
+                  <h3 className="text-lg font-bold mb-1">Parabéns!</h3>
+                  <p className="text-sm">Você ganhou: <strong>{wonPrize?.name}</strong></p>
+                  {wonPrize?.couponCode && (
+                    <p className="text-sm mt-2">Cupom: <strong>{wonPrize.couponCode}</strong></p>
+                  )}
+                </div>
+                
+                <form onSubmit={handleFormSubmit} className="space-y-4">
+                  <p className="text-center text-sm text-gray-600 mb-4">
+                    <strong>Para confirmar seu prêmio, preencha seus dados:</strong>
+                  </p>
+                  {campaign.config.customFields?.map((field) => (
+                    <div key={field.id} className="space-y-2">
+                      <Label htmlFor={field.id}>
+                        {field.name}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </Label>
+                      <Input
+                        id={field.id}
+                        type={field.type}
+                        placeholder={field.placeholder}
+                        value={participantData[field.id] || ''}
+                        onChange={(e) => setParticipantData({
+                          ...participantData,
+                          [field.id]: e.target.value
+                        })}
+                        required={field.required}
+                      />
+                    </div>
+                  ))}
+                  <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
+                    Finalizar e Confirmar Prêmio
+                  </Button>
+                </form>
+              </div>
+            )}
+
+            {/* RESULT DISPLAY */}
+            {shouldShowResult && (
               <div className="text-center space-y-6">
                 <div className="bg-gradient-to-br from-brand-gold to-yellow-500 p-6 rounded-xl text-white">
                   <div className="text-4xl mb-2">🎉</div>
@@ -462,48 +491,6 @@ const Campaign = () => {
                     Compartilhar
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {/* FORMULÁRIO APÓS O GIRO (collectDataBefore = false) - APARECE LOGO APÓS GANHAR */}
-            {hasSpun && wonPrize && !campaign.config.collectDataBefore && !dataCollected && hasCustomFields && (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-br from-brand-gold to-yellow-500 p-4 rounded-xl text-white text-center mb-4">
-                  <div className="text-3xl mb-2">🎉</div>
-                  <h3 className="text-lg font-bold mb-1">Parabéns!</h3>
-                  <p className="text-sm">Você ganhou: <strong>{wonPrize.name}</strong></p>
-                  {wonPrize.couponCode && (
-                    <p className="text-sm mt-2">Cupom: <strong>{wonPrize.couponCode}</strong></p>
-                  )}
-                </div>
-                
-                <form onSubmit={handleFormSubmit} className="space-y-4">
-                  <p className="text-center text-sm text-gray-600 mb-4">
-                    <strong>Para receber seu prêmio, preencha seus dados:</strong>
-                  </p>
-                  {campaign.config.customFields?.map((field) => (
-                    <div key={field.id} className="space-y-2">
-                      <Label htmlFor={field.id}>
-                        {field.name}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </Label>
-                      <Input
-                        id={field.id}
-                        type={field.type}
-                        placeholder={field.placeholder}
-                        value={participantData[field.id] || ''}
-                        onChange={(e) => setParticipantData({
-                          ...participantData,
-                          [field.id]: e.target.value
-                        })}
-                        required={field.required}
-                      />
-                    </div>
-                  ))}
-                  <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
-                    Finalizar e Receber Prêmio
-                  </Button>
-                </form>
               </div>
             )}
           </CardContent>
