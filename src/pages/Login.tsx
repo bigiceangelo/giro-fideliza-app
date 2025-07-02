@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -14,29 +15,23 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulação de login - em produção seria uma chamada real à API
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (email && password) {
-        localStorage.setItem('fidelizagiro_user', JSON.stringify({ email, name: 'Usuário' }));
-        toast({
-          title: 'Login realizado com sucesso!',
-          description: 'Bem-vindo ao FidelizaGiro',
-        });
-        navigate('/dashboard');
-      } else {
-        throw new Error('Credenciais inválidas');
-      }
-    } catch (error) {
+      await signIn(email, password);
+      toast({
+        title: 'Login realizado com sucesso!',
+        description: 'Bem-vindo ao FidelizaGiro',
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
       toast({
         title: 'Erro no login',
-        description: 'Email ou senha incorretos',
+        description: error.message || 'Email ou senha incorretos',
         variant: 'destructive',
       });
     } finally {

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -5,168 +6,191 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Plus, Eye, Share2, LogOut, Settings, Edit, Trash2, Users, Cog } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import ParticipantsModal from '@/components/ParticipantsModal';
 import WheelSimulationModal from '@/components/WheelSimulationModal';
 
 interface Campaign {
   id: string;
   name: string;
-  prizes: number;
-  participants: number;
   status: 'active' | 'draft';
-  createdAt: string;
-  config?: {
-    prizes: any[];
-    collectDataBefore: boolean;
-    thankYouMessage: string;
-    wheelColor: string;
-    customFields: CustomField[];
-    description?: string;
-    rules?: string;
-    prizeDescription?: string;
-  };
-}
-
-interface CustomField {
-  id: string;
-  name: string;
-  type: 'text' | 'email' | 'phone' | 'number';
-  required: boolean;
-  placeholder: string;
+  created_at: string;
+  description?: string;
+  rules?: string;
+  prize_description?: string;
+  collect_data_before: boolean;
+  thank_you_message: string;
+  wheel_color: string;
+  participants_count?: number;
+  prizes?: any[];
 }
 
 interface Participant {
-  campaignId: string;
-  timestamp: string;
-  hasSpun: boolean;
-  prize?: string;
-  couponCode?: string;
-  couponUsed?: boolean;
-  [key: string]: any; // Para campos customizados
+  id: string;
+  campaign_id: string;
+  participant_data: any;
+  has_spun: boolean;
+  prize_won?: string;
+  coupon_code?: string;
+  coupon_used: boolean;
+  created_at: string;
 }
 
 const Dashboard = () => {
-  const [user, setUser] = useState<any>(null);
+  const { user, signOut } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [showWheelModal, setShowWheelModal] = useState(false);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const userData = localStorage.getItem('fidelizagiro_user');
-    if (!userData) {
+    if (!user) {
       navigate('/login');
       return;
     }
-    setUser(JSON.parse(userData));
-
     loadCampaigns();
-  }, [navigate]);
+  }, [user, navigate]);
 
-  const loadCampaigns = () => {
-    const savedCampaigns = localStorage.getItem('fidelizagiro_campaigns');
-    if (savedCampaigns) {
-      const campaignsData = JSON.parse(savedCampaigns);
-      
-      // Debug: Log das campanhas carregadas
-      console.log('Campanhas carregadas:', campaignsData);
-      
-      // Calcular participantes para cada campanha
-      const participationsData = localStorage.getItem('fidelizagiro_participations');
-      const participations = participationsData ? JSON.parse(participationsData) : [];
-      
-      const updatedCampaigns = campaignsData.map((campaign: Campaign) => ({
-        ...campaign,
-        participants: participations.filter((p: Participant) => p.campaignId === campaign.id).length
-      }));
-      
-      setCampaigns(updatedCampaigns);
-    }
-  };
+  const loadCampaigns = async () => {
+    try {
+      const { data: campaignsData, error } = await supabase
+        .from('campaigns')
+        .select(`
+          *,
+          campaign_prizes(*)
+        `)
+        .order('created_at', { ascending: false });
 
-  const loadParticipants = (campaignId: string) => {
-    const participationsData = localStorage.getItem('fidelizagiro_participations');
-    if (participationsData) {
-      const allParticipations = JSON.parse(participationsData);
-      const campaignParticipants = allParticipations.filter((p: Participant) => p.campaignId === campaignId);
-      setParticipants(campaignParticipants);
-    }
-  };
+      if (error) throw error;
 
-  const updateParticipant = (index: number, updates: Partial<Participant>) => {
-    const updatedParticipants = [...participants];
-    updatedParticipants[index] = { ...updatedParticipants[index], ...updates };
-    setParticipants(updatedParticipants);
+      // Carregar contagem de participantes para cada campanha
+      const campaignsWithCounts = await Promise.all(
+        campaignsData.map(async (campaign) => {
+          const { count } = await supabase
+            .from('participations')
+            .select('*', { count: 'exact' })
+            .eq('campaign_id', campaign.id);
 
-    // Atualizar no localStorage
-    const participationsData = localStorage.getItem('fidelizagiro_participations');
-    if (participationsData) {
-      const allParticipations = JSON.parse(participationsData);
-      const participantToUpdate = updatedParticipants[index];
-      
-      const globalIndex = allParticipations.findIndex((p: Participant) => 
-        p.campaignId === participantToUpdate.campaignId && 
-        p.timestamp === participantToUpdate.timestamp
+          return {
+            ...campaign,
+            participants_count: count || 0,
+            prizes: campaign.campaign_prizes || [],
+          };
+        })
       );
-      
-      if (globalIndex >= 0) {
-        allParticipations[globalIndex] = participantToUpdate;
-        localStorage.setItem('fidelizagiro_participations', JSON.stringify(allParticipations));
-      }
+
+      setCampaigns(campaignsWithCounts);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar campanhas',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('fidelizagiro_user');
-    localStorage.removeItem('fidelizagiro_campaigns');
-    toast({
-      title: 'Logout realizado',
-      description: 'Até logo!',
-    });
-    navigate('/');
+  const loadParticipants = async (campaignId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('participations')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setParticipants(data || []);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar participantes',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
-  const deleteCampaign = (campaignId: string) => {
-    const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
-    localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(updatedCampaigns));
-    setCampaigns(updatedCampaigns);
-    
-    toast({
-      title: 'Campanha deletada',
-      description: 'A campanha foi removida com sucesso',
-    });
+  const updateParticipant = async (participantId: string, updates: Partial<Participant>) => {
+    try {
+      const { error } = await supabase
+        .from('participations')
+        .update(updates)
+        .eq('id', participantId);
+
+      if (error) throw error;
+
+      setParticipants(prev => 
+        prev.map(p => p.id === participantId ? { ...p, ...updates } : p)
+      );
+
+      toast({
+        title: 'Participante atualizado',
+        description: 'Status do cupom foi alterado',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao atualizar participante',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: 'Logout realizado',
+        description: 'Até logo!',
+      });
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: 'Erro no logout',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const deleteCampaign = async (campaignId: string) => {
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .delete()
+        .eq('id', campaignId);
+
+      if (error) throw error;
+
+      setCampaigns(prev => prev.filter(c => c.id !== campaignId));
+      
+      toast({
+        title: 'Campanha deletada',
+        description: 'A campanha foi removida com sucesso',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao deletar campanha',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   const shareCampaign = (campaignId: string) => {
-    // Debug: Verificar se a campanha existe
-    console.log('Tentando compartilhar campanha ID:', campaignId);
-    console.log('Campanhas disponíveis:', campaigns.map(c => ({ id: c.id, name: c.name })));
-    
-    const campaign = campaigns.find(c => c.id === campaignId);
-    if (!campaign) {
-      console.error('Campanha não encontrada para compartilhamento:', campaignId);
-      toast({
-        title: 'Erro',
-        description: 'Campanha não encontrada',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
     const campaignUrl = `${window.location.origin}/campaign/${campaignId}`;
-    console.log('URL da campanha:', campaignUrl);
     
     if (navigator.share) {
       navigator.share({
-        title: `Participe da nossa promoção: ${campaign.name}`,
+        title: 'Participe da nossa promoção!',
         text: 'Gire a roda da fortuna e ganhe prêmios incríveis!',
         url: campaignUrl
-      }).catch((error) => {
-        console.log('Erro no share nativo, copiando para clipboard:', error);
-        // Se o share nativo falhar, copia para clipboard
+      }).catch(() => {
         navigator.clipboard.writeText(campaignUrl);
         toast({
           title: 'Link copiado!',
@@ -193,7 +217,19 @@ const Dashboard = () => {
     setShowParticipantsModal(true);
   };
 
-  if (!user) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-brand-blue"></div>
+          <p className="mt-4 text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const totalParticipants = campaigns.reduce((acc, campaign) => acc + (campaign.participants_count || 0), 0);
+  const totalPrizes = campaigns.reduce((acc, campaign) => acc + (campaign.prizes?.length || 0), 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -211,7 +247,7 @@ const Dashboard = () => {
                 <h1 className="text-xl font-bold text-gradient">FidelizaGiro</h1>
               </div>
               <div className="hidden md:block">
-                <span className="text-gray-600">Olá, {user.name}!</span>
+                <span className="text-gray-600">Olá, {user?.user_metadata?.name || user?.email}!</span>
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -244,7 +280,7 @@ const Dashboard = () => {
               <CardTitle className="text-sm font-medium">Total de Participantes</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{campaigns.reduce((acc, campaign) => acc + campaign.participants, 0)}</div>
+              <div className="text-2xl font-bold">{totalParticipants}</div>
             </CardContent>
           </Card>
           <Card>
@@ -252,7 +288,7 @@ const Dashboard = () => {
               <CardTitle className="text-sm font-medium">Prêmios Distribuídos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{campaigns.reduce((acc, campaign) => acc + campaign.prizes, 0)}</div>
+              <div className="text-2xl font-bold">{totalPrizes}</div>
             </CardContent>
           </Card>
         </div>
@@ -298,19 +334,14 @@ const Dashboard = () => {
                     </Badge>
                   </div>
                   <CardDescription>
-                    {campaign.participants} participantes • {campaign.prizes} prêmios
+                    {campaign.participants_count || 0} participantes • {campaign.prizes?.length || 0} prêmios
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm text-gray-500">
-                      Criada em {new Date(campaign.createdAt).toLocaleDateString('pt-BR')}
+                      Criada em {new Date(campaign.created_at).toLocaleDateString('pt-BR')}
                     </span>
-                  </div>
-                  
-                  {/* Debug: Mostrar ID da campanha */}
-                  <div className="text-xs text-gray-400 mb-2">
-                    ID: {campaign.id}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2">
@@ -379,15 +410,20 @@ const Dashboard = () => {
             campaignName={selectedCampaign.name}
             campaignId={selectedCampaign.id}
             participants={participants}
-            onUpdateParticipant={updateParticipant}
+            onUpdateParticipant={(index: number, updates: Partial<Participant>) => {
+              const participant = participants[index];
+              if (participant) {
+                updateParticipant(participant.id, updates);
+              }
+            }}
           />
           
           <WheelSimulationModal
             isOpen={showWheelModal}
             onClose={() => setShowWheelModal(false)}
             campaignName={selectedCampaign.name}
-            prizes={selectedCampaign.config?.prizes || []}
-            wheelColor={selectedCampaign.config?.wheelColor || '#3B82F6'}
+            prizes={selectedCampaign.prizes || []}
+            wheelColor={selectedCampaign.wheel_color || '#3B82F6'}
           />
         </>
       )}

@@ -9,7 +9,204 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      campaign_custom_fields: {
+        Row: {
+          campaign_id: string
+          created_at: string | null
+          id: string
+          name: string
+          placeholder: string | null
+          required: boolean | null
+          type: Database["public"]["Enums"]["field_type"]
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+          placeholder?: string | null
+          required?: boolean | null
+          type: Database["public"]["Enums"]["field_type"]
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          placeholder?: string | null
+          required?: boolean | null
+          type?: Database["public"]["Enums"]["field_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_custom_fields_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_prizes: {
+        Row: {
+          campaign_id: string
+          coupon_code: string | null
+          created_at: string | null
+          id: string
+          name: string
+          percentage: number
+        }
+        Insert: {
+          campaign_id: string
+          coupon_code?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          percentage: number
+        }
+        Update: {
+          campaign_id?: string
+          coupon_code?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          percentage?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_prizes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          collect_data_before: boolean | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          prize_description: string | null
+          rules: string | null
+          status: Database["public"]["Enums"]["campaign_status"] | null
+          thank_you_message: string | null
+          updated_at: string | null
+          user_id: string
+          wheel_color: string | null
+        }
+        Insert: {
+          collect_data_before?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          prize_description?: string | null
+          rules?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"] | null
+          thank_you_message?: string | null
+          updated_at?: string | null
+          user_id: string
+          wheel_color?: string | null
+        }
+        Update: {
+          collect_data_before?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          prize_description?: string | null
+          rules?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"] | null
+          thank_you_message?: string | null
+          updated_at?: string | null
+          user_id?: string
+          wheel_color?: string | null
+        }
+        Relationships: []
+      }
+      participations: {
+        Row: {
+          campaign_id: string
+          coupon_code: string | null
+          coupon_used: boolean | null
+          created_at: string | null
+          has_spun: boolean | null
+          id: string
+          participant_data: Json
+          prize_won: string | null
+        }
+        Insert: {
+          campaign_id: string
+          coupon_code?: string | null
+          coupon_used?: boolean | null
+          created_at?: string | null
+          has_spun?: boolean | null
+          id?: string
+          participant_data: Json
+          prize_won?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          coupon_code?: string | null
+          coupon_used?: boolean | null
+          created_at?: string | null
+          has_spun?: boolean | null
+          id?: string
+          participant_data?: Json
+          prize_won?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          business_name: string | null
+          city: string | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          phone: string | null
+          segment: string | null
+          state: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_name?: string | null
+          city?: string | null
+          created_at?: string | null
+          email: string
+          id: string
+          name: string
+          phone?: string | null
+          segment?: string | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_name?: string | null
+          city?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          segment?: string | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +215,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      campaign_status: "active" | "draft"
+      field_type: "text" | "email" | "phone" | "number"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +331,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      campaign_status: ["active", "draft"],
+      field_type: ["text", "email", "phone", "number"],
+    },
   },
 } as const

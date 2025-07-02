@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -23,6 +23,7 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { signUp } = useAuth();
 
   const segments = [
     'Alimentação', 'Beleza e Estética', 'Moda e Vestuário', 'Saúde e Bem-estar',
@@ -34,23 +35,16 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      localStorage.setItem('fidelizagiro_user', JSON.stringify({
-        name: formData.name,
-        email: formData.email,
-        businessName: formData.businessName
-      }));
-      
+      await signUp(formData.email, formData.password, formData);
       toast({
         title: 'Conta criada com sucesso!',
         description: 'Bem-vindo ao FidelizaGiro',
       });
       navigate('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Erro ao criar conta',
-        description: 'Tente novamente em alguns instantes',
+        description: error.message || 'Tente novamente em alguns instantes',
         variant: 'destructive',
       });
     } finally {
