@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,8 @@ interface Campaign {
   prizes?: any[];
 }
 
-interface Participant {
+// Usar a interface do Supabase para participações
+interface Participation {
   id: string;
   campaign_id: string;
   participant_data: any;
@@ -41,7 +41,7 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [participants, setParticipants] = useState<Participation[]>([]);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [showWheelModal, setShowWheelModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -115,7 +115,7 @@ const Dashboard = () => {
     }
   };
 
-  const updateParticipant = async (participantId: string, updates: Partial<Participant>) => {
+  const updateParticipant = async (participantId: string, updates: Partial<Participation>) => {
     try {
       const { error } = await supabase
         .from('participations')
@@ -410,7 +410,7 @@ const Dashboard = () => {
             campaignName={selectedCampaign.name}
             campaignId={selectedCampaign.id}
             participants={participants}
-            onUpdateParticipant={(index: number, updates: Partial<Participant>) => {
+            onUpdateParticipant={(index: number, updates: Partial<Participation>) => {
               const participant = participants[index];
               if (participant) {
                 updateParticipant(participant.id, updates);
