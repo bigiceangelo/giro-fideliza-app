@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, userData: any) => {
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -59,24 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (error) throw error;
-
-    // Inserir dados adicionais no perfil apenas se o usuário foi criado
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: data.user.id,
-          name: userData.name,
-          email: email,
-          business_name: userData.businessName,
-          segment: userData.segment,
-          phone: userData.phone,
-          city: userData.city,
-          state: userData.state,
-        });
-      
-      if (profileError) throw profileError;
-    }
+    
+    // Não precisamos mais fazer upsert manual - o trigger handle_new_user já faz isso
   };
 
   const signOut = async () => {
