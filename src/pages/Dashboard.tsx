@@ -432,7 +432,7 @@ const Dashboard = () => {
             campaignName={selectedCampaign.name}
             campaignId={selectedCampaign.id}
             participants={participants}
-            onUpdateParticipant={(index: number, updates: Partial<Participation>) => {
+            onUpdateParticipant={(index: number, updates: Partial<Participant>) => {
               const participant = participants[index];
               if (participant) {
                 updateParticipant(participant.id, updates);
