@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -25,23 +26,23 @@ interface Campaign {
   prizes?: any[];
 }
 
-// Usar a interface do Supabase para participações
-interface Participation {
+// Interface compatível com ParticipantsModal
+interface Participant {
   id: string;
-  campaign_id: string;
+  campaignId: string;
   participant_data: any;
-  has_spun: boolean;
+  hasSpun: boolean;
   prize_won?: string;
   coupon_code?: string;
   coupon_used: boolean;
-  created_at: string;
+  timestamp: string;
 }
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const [participants, setParticipants] = useState<Participation[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [showWheelModal, setShowWheelModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -105,7 +106,20 @@ const Dashboard = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setParticipants(data || []);
+      
+      // Transformar os dados do Supabase para o formato esperado pelo ParticipantsModal
+      const transformedParticipants: Participant[] = (data || []).map(participation => ({
+        id: participation.id,
+        campaignId: participation.campaign_id,
+        participant_data: participation.participant_data,
+        hasSpun: participation.has_spun || false,
+        prize_won: participation.prize_won,
+        coupon_code: participation.coupon_code,
+        coupon_used: participation.coupon_used || false,
+        timestamp: participation.created_at || ''
+      }));
+      
+      setParticipants(transformedParticipants);
     } catch (error: any) {
       toast({
         title: 'Erro ao carregar participantes',
@@ -115,11 +129,19 @@ const Dashboard = () => {
     }
   };
 
-  const updateParticipant = async (participantId: string, updates: Partial<Participation>) => {
+  const updateParticipant = async (participantId: string, updates: Partial<Participant>) => {
     try {
+      // Transformar as atualizações para o formato do Supabase
+      const supabaseUpdates: Record<string, any> = {};
+      
+      if (updates.hasSpun !== undefined) supabaseUpdates.has_spun = updates.hasSpun;
+      if (updates.prize_won !== undefined) supabaseUpdates.prize_won = updates.prize_won;
+      if (updates.coupon_code !== undefined) supabaseUpdates.coupon_code = updates.coupon_code;
+      if (updates.coupon_used !== undefined) supabaseUpdates.coupon_used = updates.coupon_used;
+
       const { error } = await supabase
         .from('participations')
-        .update(updates)
+        .update(supabaseUpdates)
         .eq('id', participantId);
 
       if (error) throw error;
