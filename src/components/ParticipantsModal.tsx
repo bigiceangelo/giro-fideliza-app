@@ -14,6 +14,7 @@ interface Participant {
   prize?: string;
   couponCode?: string;
   couponUsed?: boolean;
+  participant_data: any; // Dados do formulário de participação
   [key: string]: any;
 }
 
@@ -60,16 +61,16 @@ const ParticipantsModal = ({
       return;
     }
 
-    // Criar dados para Excel
+    // Criar dados para Excel com todos os campos disponíveis
     const headers = ['Nome', 'Email', 'Telefone', 'Prêmio', 'Cupom', 'Status do Cupom', 'Data de Participação'];
     const rows = participants.map(p => [
-      p.name || 'N/A',
-      p.email || 'N/A', 
-      p.phone || 'N/A',
-      p.prize || 'Não girou',
-      p.couponCode || 'N/A',
-      p.couponUsed ? 'Usado' : 'Não usado',
-      new Date(p.timestamp).toLocaleDateString('pt-BR')
+      p.participant_data?.name || p.participant_data?.nome || 'N/A',
+      p.participant_data?.email || 'N/A', 
+      p.participant_data?.phone || p.participant_data?.telefone || 'N/A',
+      p.prize_won || p.prize || 'Não girou',
+      p.coupon_code || p.couponCode || 'N/A',
+      p.coupon_used || p.couponUsed ? 'Usado' : 'Não usado',
+      new Date(p.timestamp || p.created_at).toLocaleDateString('pt-BR')
     ]);
 
     // Criar CSV (Excel pode abrir CSV)
@@ -125,33 +126,41 @@ const ParticipantsModal = ({
               <TableBody>
                 {participants.map((participant, index) => (
                   <TableRow key={index}>
-                    <TableCell className="font-medium">{participant.name || 'N/A'}</TableCell>
-                    <TableCell>{participant.email || 'N/A'}</TableCell>
-                    <TableCell>{participant.phone || 'N/A'}</TableCell>
+                    <TableCell className="font-medium">
+                      {participant.participant_data?.name || participant.participant_data?.nome || 'N/A'}
+                    </TableCell>
                     <TableCell>
-                      {participant.prize ? (
-                        <Badge variant="default">{participant.prize}</Badge>
+                      {participant.participant_data?.email || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      {participant.participant_data?.phone || participant.participant_data?.telefone || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      {participant.prize_won || participant.prize ? (
+                        <Badge variant="default">{participant.prize_won || participant.prize}</Badge>
                       ) : (
                         <Badge variant="secondary">Não girou</Badge>
                       )}
                     </TableCell>
-                    <TableCell>{participant.couponCode || 'N/A'}</TableCell>
+                    <TableCell>{participant.coupon_code || participant.couponCode || 'N/A'}</TableCell>
                     <TableCell>
-                      {participant.couponCode && (
-                        <Badge variant={participant.couponUsed ? "destructive" : "default"}>
-                          {participant.couponUsed ? 'Usado' : 'Não usado'}
+                      {(participant.coupon_code || participant.couponCode) && (
+                        <Badge variant={(participant.coupon_used || participant.couponUsed) ? "destructive" : "default"}>
+                          {(participant.coupon_used || participant.couponUsed) ? 'Usado' : 'Não usado'}
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{new Date(participant.timestamp).toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell>
-                      {participant.couponCode && (
+                      {new Date(participant.timestamp || participant.created_at).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>
+                      {(participant.coupon_code || participant.couponCode) && (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => toggleCouponStatus(index)}
                         >
-                          {participant.couponUsed ? (
+                          {(participant.coupon_used || participant.couponUsed) ? (
                             <X className="w-4 h-4" />
                           ) : (
                             <Check className="w-4 h-4" />

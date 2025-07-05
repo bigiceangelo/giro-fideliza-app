@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -36,6 +35,10 @@ interface Participant {
   coupon_code?: string;
   coupon_used: boolean;
   timestamp: string;
+  created_at?: string;
+  prize?: string;
+  couponCode?: string;
+  couponUsed?: boolean;
 }
 
 const Dashboard = () => {
@@ -116,9 +119,15 @@ const Dashboard = () => {
         prize_won: participation.prize_won,
         coupon_code: participation.coupon_code,
         coupon_used: participation.coupon_used || false,
-        timestamp: participation.created_at || ''
+        timestamp: participation.created_at || '',
+        created_at: participation.created_at || '',
+        // Propriedades compatíveis com o formato antigo
+        prize: participation.prize_won,
+        couponCode: participation.coupon_code,
+        couponUsed: participation.coupon_used || false
       }));
       
+      console.log('Participants loaded:', transformedParticipants);
       setParticipants(transformedParticipants);
     } catch (error: any) {
       toast({
@@ -138,6 +147,7 @@ const Dashboard = () => {
       if (updates.prize_won !== undefined) supabaseUpdates.prize_won = updates.prize_won;
       if (updates.coupon_code !== undefined) supabaseUpdates.coupon_code = updates.coupon_code;
       if (updates.coupon_used !== undefined) supabaseUpdates.coupon_used = updates.coupon_used;
+      if (updates.couponUsed !== undefined) supabaseUpdates.coupon_used = updates.couponUsed;
 
       const { error } = await supabase
         .from('participations')
