@@ -216,7 +216,7 @@ export type Database = {
     }
     Enums: {
       campaign_status: "active" | "draft"
-      field_type: "text" | "email" | "phone" | "number"
+      field_type: "text" | "email" | "phone" | "number" | "date"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -333,7 +333,7 @@ export const Constants = {
   public: {
     Enums: {
       campaign_status: ["active", "draft"],
-      field_type: ["text", "email", "phone", "number"],
+      field_type: ["text", "email", "phone", "number", "date"],
     },
   },
 } as const
