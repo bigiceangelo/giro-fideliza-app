@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ interface Prize {
 interface CustomField {
   id: string;
   name: string;
-  type: 'text' | 'email' | 'phone' | 'number' | 'date';
+  type: 'text' | 'email' | 'phone' | 'number';
   required: boolean;
   placeholder: string;
 }
