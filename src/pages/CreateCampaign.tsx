@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 
 interface Prize {
@@ -27,6 +28,7 @@ interface CustomField {
 }
 
 const CreateCampaign = () => {
+  const { user } = useAuth();
   const [campaignName, setCampaignName] = useState('');
   const [prizes, setPrizes] = useState<Prize[]>([
     { id: '1', name: 'Desconto 10%', percentage: 30, couponCode: 'DESC10' },
@@ -96,6 +98,16 @@ const CreateCampaign = () => {
     e.preventDefault();
     setIsLoading(true);
 
+    if (!user) {
+      toast({
+        title: 'Erro de autenticação',
+        description: 'Você precisa estar logado para criar uma campanha',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
+
     // Validações
     if (getTotalPercentage() !== 100) {
       toast({
@@ -128,29 +140,50 @@ const CreateCampaign = () => {
     }
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Criar campanha no Supabase
+      const { data: campaign, error: campaignError } = await supabase
+        .from('campaigns')
+        .insert({
+          name: campaignName,
+          user_id: user.id,
+          status: 'active',
+          collect_data_before: collectDataBefore,
+          thank_you_message: thankYouMessage,
+          wheel_color: wheelColor,
+        })
+        .select()
+        .single();
 
-      const newCampaign = {
-        id: Date.now().toString(),
-        name: campaignName,
-        prizes: prizes.length,
-        participants: 0,
-        status: 'active' as const,
-        createdAt: new Date().toISOString(),
-        config: {
-          prizes,
-          collectDataBefore,
-          thankYouMessage,
-          wheelColor,
-          customFields
-        }
-      };
+      if (campaignError) throw campaignError;
 
-      // Salvar no localStorage (em produção seria uma API)
-      const existingCampaigns = localStorage.getItem('fidelizagiro_campaigns');
-      const campaigns = existingCampaigns ? JSON.parse(existingCampaigns) : [];
-      campaigns.push(newCampaign);
-      localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(campaigns));
+      // Inserir prêmios
+      const prizesData = prizes.map(prize => ({
+        campaign_id: campaign.id,
+        name: prize.name,
+        percentage: prize.percentage,
+        coupon_code: prize.couponCode || null,
+      }));
+
+      const { error: prizesError } = await supabase
+        .from('campaign_prizes')
+        .insert(prizesData);
+
+      if (prizesError) throw prizesError;
+
+      // Inserir campos personalizados
+      const customFieldsData = customFields.map(field => ({
+        campaign_id: campaign.id,
+        name: field.name,
+        type: field.type,
+        required: field.required,
+        placeholder: field.placeholder || null,
+      }));
+
+      const { error: fieldsError } = await supabase
+        .from('campaign_custom_fields')
+        .insert(customFieldsData);
+
+      if (fieldsError) throw fieldsError;
 
       toast({
         title: 'Campanha criada com sucesso!',
@@ -158,10 +191,11 @@ const CreateCampaign = () => {
       });
 
       navigate('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Erro ao criar campanha:', error);
       toast({
         title: 'Erro ao criar campanha',
-        description: 'Tente novamente em alguns instantes',
+        description: error.message || 'Tente novamente em alguns instantes',
         variant: 'destructive',
       });
     } finally {
@@ -231,14 +265,13 @@ const CreateCampaign = () => {
                             <SelectItem value="email">Email</SelectItem>
                             <SelectItem value="phone">Telefone</SelectItem>
                             <SelectItem value="number">Número</SelectItem>
-                            <SelectItem value="date">Data</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
                         <Label className="text-sm text-gray-600">Placeholder</Label>
                         <Input
-                          placeholder={field.type === 'date' ? 'Ex: Data de nascimento' : 'Texto de ajuda'}
+                          placeholder="Texto de ajuda"
                           value={field.placeholder}
                           onChange={(e) => updateCustomField(field.id, 'placeholder', e.target.value)}
                         />
