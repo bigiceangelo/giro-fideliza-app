@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Share2, RotateCcw, Play, Info, Gift } from 'lucide-react';
 import SpinWheel from '@/components/SpinWheel';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Prize {
   id: string;
@@ -55,63 +57,99 @@ const Campaign = () => {
     console.log('=== CAMPAIGN LOAD START ===');
     console.log('Campaign ID:', id);
     
-    const loadCampaign = () => {
+    const loadCampaign = async () => {
+      if (!id) {
+        console.log('No ID provided');
+        setLoading(false);
+        return;
+      }
+
       try {
-        const campaigns = localStorage.getItem('fidelizagiro_campaigns');
-        console.log('Raw campaigns from localStorage:', campaigns);
-        
-        if (!campaigns) {
-          console.log('No campaigns found');
+        // Buscar a campanha no Supabase
+        const { data: campaignData, error: campaignError } = await supabase
+          .from('campaigns')
+          .select('*')
+          .eq('id', id)
+          .eq('status', 'active')
+          .single();
+
+        if (campaignError) {
+          console.error('Error loading campaign:', campaignError);
           setCampaign(null);
           setLoading(false);
           return;
         }
-        
-        const parsedCampaigns = JSON.parse(campaigns);
-        console.log('Parsed campaigns:', parsedCampaigns);
-        
-        const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
-        console.log('Found campaign:', foundCampaign);
-        
-        if (foundCampaign) {
-          const defaultConfig = {
-            prizes: [],
-            collectDataBefore: false,
-            thankYouMessage: 'Obrigado por participar!',
-            wheelColor: '#3B82F6',
-            customFields: [],
-            description: '',
-            rules: '',
-            prizeDescription: ''
-          };
-          
-          const campaign = {
-            ...foundCampaign,
-            config: {
-              ...defaultConfig,
-              ...foundCampaign.config,
-              customFields: foundCampaign.config?.customFields || []
-            }
-          };
-          
-          console.log('Final campaign object:', campaign);
-          setCampaign(campaign);
-          
-          // Initialize participant data
-          const initialData: {[key: string]: string} = {};
-          campaign.config.customFields.forEach(field => {
-            initialData[field.id] = '';
-          });
-          setParticipantData(initialData);
-          setLoading(false);
-          console.log('=== CAMPAIGN LOAD SUCCESS ===');
-        } else {
-          console.log('Campaign not found with ID:', id);
+
+        if (!campaignData) {
+          console.log('Campaign not found or not active');
           setCampaign(null);
           setLoading(false);
-          console.log('=== CAMPAIGN LOAD NOT FOUND ===');
+          return;
         }
-        
+
+        // Buscar os prêmios da campanha
+        const { data: prizesData, error: prizesError } = await supabase
+          .from('campaign_prizes')
+          .select('*')
+          .eq('campaign_id', id);
+
+        if (prizesError) {
+          console.error('Error loading prizes:', prizesError);
+        }
+
+        // Buscar os campos customizados da campanha
+        const { data: fieldsData, error: fieldsError } = await supabase
+          .from('campaign_custom_fields')
+          .select('*')
+          .eq('campaign_id', id);
+
+        if (fieldsError) {
+          console.error('Error loading custom fields:', fieldsError);
+        }
+
+        // Converter os dados para o formato esperado
+        const prizes: Prize[] = (prizesData || []).map(prize => ({
+          id: prize.id,
+          name: prize.name,
+          percentage: prize.percentage,
+          couponCode: prize.coupon_code || ''
+        }));
+
+        const customFields: CustomField[] = (fieldsData || []).map(field => ({
+          id: field.id,
+          name: field.name,
+          type: field.type as 'text' | 'email' | 'phone' | 'number' | 'date',
+          required: field.required || false,
+          placeholder: field.placeholder || ''
+        }));
+
+        const campaign: CampaignData = {
+          id: campaignData.id,
+          name: campaignData.name,
+          config: {
+            prizes,
+            collectDataBefore: campaignData.collect_data_before || false,
+            thankYouMessage: campaignData.thank_you_message || 'Obrigado por participar!',
+            wheelColor: campaignData.wheel_color || '#3B82F6',
+            customFields,
+            description: campaignData.description || '',
+            rules: campaignData.rules || '',
+            prizeDescription: campaignData.prize_description || ''
+          }
+        };
+
+        console.log('Campaign loaded successfully:', campaign);
+        setCampaign(campaign);
+
+        // Initialize participant data
+        const initialData: {[key: string]: string} = {};
+        customFields.forEach(field => {
+          initialData[field.id] = '';
+        });
+        setParticipantData(initialData);
+        setLoading(false);
+        console.log('=== CAMPAIGN LOAD SUCCESS ===');
+
       } catch (error) {
         console.error('Error loading campaign:', error);
         setCampaign(null);
@@ -120,79 +158,81 @@ const Campaign = () => {
       }
     };
 
-    if (id) {
-      loadCampaign();
-    } else {
-      console.log('No ID provided');
-      setLoading(false);
-    }
+    loadCampaign();
   }, [id]);
 
-  const createParticipation = (prize?: Prize) => {
+  const createParticipation = async (prize?: Prize) => {
     if (!campaign || !id) return null;
 
-    const newParticipationId = `${id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const participantDataPayload: any = {};
     
-    const participation = {
-      id: newParticipationId,
-      campaignId: id,
-      timestamp: new Date().toISOString(),
-      hasSpun: !!prize,
-      ...(prize && {
-        prize: prize.name,
-        couponCode: prize.couponCode,
-        spinTimestamp: new Date().toISOString()
-      })
-    };
-
     if (campaign.config.customFields && campaign.config.customFields.length > 0) {
-      const readableData: {[key: string]: string} = {};
       campaign.config.customFields.forEach(field => {
         const value = participantData[field.id] || '';
         if (value) {
-          readableData[field.name.toLowerCase()] = value;
+          participantDataPayload[field.name.toLowerCase()] = value;
         }
       });
-      Object.assign(participation, readableData);
     }
-    
-    const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-    const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-    participations.push(participation);
-    localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-    
-    setParticipationId(newParticipationId);
-    console.log('Participation created:', participation);
-    
-    return newParticipationId;
+
+    const participation = {
+      campaign_id: id,
+      participant_data: participantDataPayload,
+      has_spun: !!prize,
+      ...(prize && {
+        prize_won: prize.name,
+        coupon_code: prize.couponCode
+      })
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('participations')
+        .insert([participation])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating participation:', error);
+        return null;
+      }
+
+      setParticipationId(data.id);
+      console.log('Participation created:', data);
+      return data.id;
+    } catch (error) {
+      console.error('Error creating participation:', error);
+      return null;
+    }
   };
 
-  const updateParticipationWithData = (participationId: string) => {
+  const updateParticipationWithData = async (participationId: string) => {
     if (!campaign?.config.customFields) return;
 
-    const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-    const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-    
-    const participationIndex = participations.findIndex((p: any) => p.id === participationId);
-    
-    if (participationIndex >= 0) {
-      const readableData: {[key: string]: string} = {};
-      campaign.config.customFields.forEach(field => {
-        readableData[field.name.toLowerCase()] = participantData[field.id] || '';
-      });
-      
-      participations[participationIndex] = {
-        ...participations[participationIndex],
-        ...readableData,
-        dataCollectedAt: new Date().toISOString()
-      };
-      
-      localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-      console.log('Participation updated with data:', participations[participationIndex]);
+    const participantDataPayload: any = {};
+    campaign.config.customFields.forEach(field => {
+      participantDataPayload[field.name.toLowerCase()] = participantData[field.id] || '';
+    });
+
+    try {
+      const { error } = await supabase
+        .from('participations')
+        .update({
+          participant_data: participantDataPayload
+        })
+        .eq('id', participationId);
+
+      if (error) {
+        console.error('Error updating participation:', error);
+      } else {
+        console.log('Participation updated with data');
+      }
+    } catch (error) {
+      console.error('Error updating participation:', error);
     }
   };
 
-  const handlePrizeWon = (prize: Prize) => {
+  const handlePrizeWon = async (prize: Prize) => {
     console.log('=== PRIZE WON ===');
     console.log('Prize:', prize.name);
     
@@ -201,25 +241,26 @@ const Campaign = () => {
     setIsSpinning(false);
     
     if (campaign?.config.collectDataBefore && participationId) {
-      const existingParticipations = localStorage.getItem('fidelizagiro_participations');
-      const participations = existingParticipations ? JSON.parse(existingParticipations) : [];
-      
-      const participationIndex = participations.findIndex((p: any) => p.id === participationId);
-      
-      if (participationIndex >= 0) {
-        participations[participationIndex] = {
-          ...participations[participationIndex],
-          prize: prize.name,
-          couponCode: prize.couponCode,
-          hasSpun: true,
-          spinTimestamp: new Date().toISOString()
-        };
-        
-        localStorage.setItem('fidelizagiro_participations', JSON.stringify(participations));
-        console.log('Updated existing participation with prize');
+      try {
+        const { error } = await supabase
+          .from('participations')
+          .update({
+            prize_won: prize.name,
+            coupon_code: prize.couponCode,
+            has_spun: true
+          })
+          .eq('id', participationId);
+
+        if (error) {
+          console.error('Error updating participation with prize:', error);
+        } else {
+          console.log('Updated existing participation with prize');
+        }
+      } catch (error) {
+        console.error('Error updating participation:', error);
       }
     } else {
-      createParticipation(prize);
+      await createParticipation(prize);
     }
 
     toast({
@@ -239,7 +280,7 @@ const Campaign = () => {
     return true;
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -252,14 +293,16 @@ const Campaign = () => {
     }
 
     if (campaign?.config.collectDataBefore && !hasSpun) {
-      createParticipation();
-      setDataCollected(true);
-      toast({
-        title: 'Dados salvos!',
-        description: 'Agora você pode girar a roda da fortuna!',
-      });
+      const newParticipationId = await createParticipation();
+      if (newParticipationId) {
+        setDataCollected(true);
+        toast({
+          title: 'Dados salvos!',
+          description: 'Agora você pode girar a roda da fortuna!',
+        });
+      }
     } else if (hasSpun && participationId) {
-      updateParticipationWithData(participationId);
+      await updateParticipationWithData(participationId);
       setDataCollected(true);
       toast({
         title: 'Dados salvos!',
