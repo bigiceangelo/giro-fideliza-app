@@ -27,15 +27,17 @@ interface CustomField {
 interface CampaignData {
   id: string;
   name: string;
+  description?: string;
+  rules?: string;
+  prize_description?: string;
+  thank_you_message?: string;
+  wheel_color?: string;
   config: {
     prizes: Prize[];
     collectDataBefore: boolean;
     thankYouMessage: string;
     wheelColor: string;
     customFields?: CustomField[];
-    description?: string;
-    rules?: string;
-    prizeDescription?: string;
   };
 }
 
@@ -54,6 +56,11 @@ const Campaign = () => {
   const [showForm, setShowForm] = useState(false);
   const [canSpin, setCanSpin] = useState(false);
   const { toast } = useToast();
+
+  // Derived variables from campaign data
+  const customFields = campaign?.config.customFields || [];
+  const prizes = campaign?.config.prizes || [];
+  const winner = wonPrize ? { prize: wonPrize.name, couponCode: wonPrize.couponCode } : null;
 
   useEffect(() => {
     console.log('=== CAMPAIGN LOAD START ===');
@@ -128,15 +135,17 @@ const Campaign = () => {
         const campaign: CampaignData = {
           id: campaignData.id,
           name: campaignData.name,
+          description: campaignData.description || '',
+          rules: campaignData.rules || '',
+          prize_description: campaignData.prize_description || '',
+          thank_you_message: campaignData.thank_you_message || 'Obrigado por participar!',
+          wheel_color: campaignData.wheel_color || '#3B82F6',
           config: {
             prizes,
             collectDataBefore: campaignData.collect_data_before || false,
             thankYouMessage: campaignData.thank_you_message || 'Obrigado por participar!',
             wheelColor: campaignData.wheel_color || '#3B82F6',
-            customFields,
-            description: campaignData.description || '',
-            rules: campaignData.rules || '',
-            prizeDescription: campaignData.prize_description || ''
+            customFields
           }
         };
 
@@ -149,6 +158,16 @@ const Campaign = () => {
           initialData[field.id] = '';
         });
         setParticipantData(initialData);
+
+        // Check if we need to show form first
+        if (campaignData.collect_data_before && customFields.length > 0) {
+          setShowForm(true);
+          setCanSpin(false);
+        } else {
+          setShowForm(false);
+          setCanSpin(true);
+        }
+
         setLoading(false);
         console.log('=== CAMPAIGN LOAD SUCCESS ===');
 
@@ -269,6 +288,10 @@ const Campaign = () => {
       title: 'Parabéns! 🎉',
       description: `Você ganhou: ${prize.name}`,
     });
+  };
+
+  const handleSpin = (prize: Prize) => {
+    handlePrizeWon(prize);
   };
 
   const validateForm = () => {
@@ -523,7 +546,7 @@ const Campaign = () => {
                 <SpinWheel
                   prizes={prizes}
                   onSpin={handleSpin}
-                  canSpin={canSpin}
+                  isSpinning={isSpinning}
                   wheelColor={campaign.wheel_color || '#3B82F6'}
                 />
               </div>
