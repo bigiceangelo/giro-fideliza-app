@@ -2,73 +2,102 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CampaignData {
   id: string;
   name: string;
-  config: {
-    prizes: any[];
-    collectDataBefore: boolean;
-    thankYouMessage: string;
-    wheelColor: string;
-    customFields: any[];
-    description?: string;
-    rules?: string;
-    prizeDescription?: string;
-  };
+  description?: string;
+  rules?: string;
+  prize_description?: string;
+  prizes?: any[];
 }
 
 const CampaignConfig = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [description, setDescription] = useState('');
   const [rules, setRules] = useState('');
   const [prizeDescription, setPrizeDescription] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const campaigns = localStorage.getItem('fidelizagiro_campaigns');
-    if (campaigns) {
-      const parsedCampaigns = JSON.parse(campaigns);
-      const foundCampaign = parsedCampaigns.find((c: CampaignData) => c.id === id);
-      if (foundCampaign) {
-        setCampaign(foundCampaign);
-        setDescription(foundCampaign.config.description || '');
-        setRules(foundCampaign.config.rules || '');
-        setPrizeDescription(foundCampaign.config.prizeDescription || '');
-      }
+    if (!user || !id) {
+      navigate('/dashboard');
+      return;
     }
-  }, [id]);
+    loadCampaign();
+  }, [user, id, navigate]);
 
-  const handleSave = () => {
+  const loadCampaign = async () => {
+    try {
+      const { data: campaign, error: campaignError } = await supabase
+        .from('campaigns')
+        .select(`
+          *,
+          campaign_prizes(*)
+        `)
+        .eq('id', id)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (campaignError) throw campaignError;
+
+      if (!campaign) {
+        toast({
+          title: 'Campanha não encontrada',
+          description: 'Redirecionando para o dashboard',
+          variant: 'destructive',
+        });
+        navigate('/dashboard');
+        return;
+      }
+
+      setCampaign({
+        ...campaign,
+        prizes: campaign.campaign_prizes || []
+      });
+      setDescription(campaign.description || '');
+      setRules(campaign.rules || '');
+      setPrizeDescription(campaign.prize_description || '');
+    } catch (error: any) {
+      console.error('Error loading campaign:', error);
+      toast({
+        title: 'Erro ao carregar campanha',
+        description: error.message,
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
     if (!campaign) return;
 
-    const campaigns = localStorage.getItem('fidelizagiro_campaigns');
-    if (campaigns) {
-      const parsedCampaigns = JSON.parse(campaigns);
-      const updatedCampaigns = parsedCampaigns.map((c: CampaignData) => {
-        if (c.id === id) {
-          return {
-            ...c,
-            config: {
-              ...c.config,
-              description,
-              rules,
-              prizeDescription
-            }
-          };
-        }
-        return c;
-      });
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('campaigns')
+        .update({
+          description,
+          rules,
+          prize_description: prizeDescription
+        })
+        .eq('id', id);
 
-      localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(updatedCampaigns));
+      if (error) throw error;
       
       toast({
         title: 'Configurações salvas',
@@ -76,8 +105,28 @@ const CampaignConfig = () => {
       });
       
       navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Error saving campaign config:', error);
+      toast({
+        title: 'Erro ao salvar configurações',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-brand-blue"></div>
+          <p className="mt-4 text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!campaign) {
     return (
@@ -104,9 +153,9 @@ const CampaignConfig = () => {
               </Button>
               <h1 className="text-xl font-bold">Configurar Campanha</h1>
             </div>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={saving}>
               <Save className="w-4 h-4 mr-2" />
-              Salvar
+              {saving ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
         </div>
@@ -156,12 +205,16 @@ const CampaignConfig = () => {
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="font-semibold mb-2">Prêmios Configurados:</h3>
               <div className="space-y-2">
-                {campaign.config.prizes.map((prize, index) => (
-                  <div key={index} className="flex justify-between items-center">
-                    <span>{prize.name}</span>
-                    <span className="text-sm text-gray-500">{prize.percentage}%</span>
-                  </div>
-                ))}
+                {campaign.prizes && campaign.prizes.length > 0 ? (
+                  campaign.prizes.map((prize, index) => (
+                    <div key={index} className="flex justify-between items-center">
+                      <span>{prize.name}</span>
+                      <span className="text-sm text-gray-500">{prize.percentage}%</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500">Nenhum prêmio configurado</p>
+                )}
               </div>
             </div>
           </CardContent>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,12 +10,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Prize {
   id: string;
   name: string;
   percentage: number;
-  couponCode: string;
+  coupon_code: string;
 }
 
 interface CustomField {
@@ -25,64 +28,116 @@ interface CustomField {
   placeholder: string;
 }
 
-interface CampaignConfig {
-  prizes: Prize[];
-  collectDataBefore: boolean;
-  thankYouMessage: string;
-  wheelColor: string;
-  customFields: CustomField[];
-}
-
 const EditCampaign = () => {
   const { id } = useParams();
+  const { user } = useAuth();
   const [campaignName, setCampaignName] = useState('');
   const [prizes, setPrizes] = useState<Prize[]>([]);
-  const [customFields, setCustomFields] = useState<CustomField[]>([
-    { id: '1', name: 'Nome', type: 'text', required: true, placeholder: 'Seu nome completo' },
-    { id: '2', name: 'Email', type: 'email', required: true, placeholder: 'seu@email.com' },
-    { id: '3', name: 'WhatsApp', type: 'phone', required: true, placeholder: '(11) 99999-9999' }
-  ]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [collectDataBefore, setCollectDataBefore] = useState(true);
   const [thankYouMessage, setThankYouMessage] = useState('');
-  const [wheelColor, setWheelColor] = useState('#007BFF');
+  const [wheelColor, setWheelColor] = useState('#3B82F6');
   const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Carregar dados da campanha
-    const campaigns = localStorage.getItem('fidelizagiro_campaigns');
-    if (campaigns) {
-      const parsedCampaigns = JSON.parse(campaigns);
-      const campaign = parsedCampaigns.find((c: any) => c.id === id);
-      
-      if (campaign) {
-        setCampaignName(campaign.name);
-        if (campaign.config) {
-          setPrizes(campaign.config.prizes || []);
-          setCollectDataBefore(campaign.config.collectDataBefore ?? true);
-          setThankYouMessage(campaign.config.thankYouMessage || '');
-          setWheelColor(campaign.config.wheelColor || '#007BFF');
-          setCustomFields(campaign.config.customFields || customFields);
-        }
-      } else {
+    if (!user || !id) {
+      navigate('/dashboard');
+      return;
+    }
+    loadCampaign();
+  }, [user, id, navigate]);
+
+  const loadCampaign = async () => {
+    try {
+      const { data: campaign, error: campaignError } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (campaignError) throw campaignError;
+
+      if (!campaign) {
         toast({
           title: 'Campanha não encontrada',
           description: 'Redirecionando para o dashboard',
           variant: 'destructive',
         });
         navigate('/dashboard');
+        return;
       }
+
+      setCampaignName(campaign.name);
+      setCollectDataBefore(campaign.collect_data_before ?? true);
+      setThankYouMessage(campaign.thank_you_message || '');
+      setWheelColor(campaign.wheel_color || '#3B82F6');
+
+      // Carregar prêmios
+      const { data: prizesData, error: prizesError } = await supabase
+        .from('campaign_prizes')
+        .select('*')
+        .eq('campaign_id', id);
+
+      if (prizesError) throw prizesError;
+
+      const transformedPrizes = (prizesData || []).map(prize => ({
+        id: prize.id,
+        name: prize.name,
+        percentage: prize.percentage,
+        coupon_code: prize.coupon_code || ''
+      }));
+      setPrizes(transformedPrizes);
+
+      // Carregar campos personalizados
+      const { data: fieldsData, error: fieldsError } = await supabase
+        .from('campaign_custom_fields')
+        .select('*')
+        .eq('campaign_id', id);
+
+      if (fieldsError) throw fieldsError;
+
+      const transformedFields = (fieldsData || []).map(field => ({
+        id: field.id,
+        name: field.name,
+        type: field.type as 'text' | 'email' | 'phone' | 'number' | 'date',
+        required: field.required || false,
+        placeholder: field.placeholder || ''
+      }));
+
+      if (transformedFields.length === 0) {
+        setCustomFields([
+          { id: '1', name: 'Nome', type: 'text', required: true, placeholder: 'Seu nome completo' },
+          { id: '2', name: 'Email', type: 'email', required: true, placeholder: 'seu@email.com' },
+          { id: '3', name: 'WhatsApp', type: 'phone', required: true, placeholder: '(11) 99999-9999' }
+        ]);
+      } else {
+        setCustomFields(transformedFields);
+      }
+
+    } catch (error: any) {
+      console.error('Error loading campaign:', error);
+      toast({
+        title: 'Erro ao carregar campanha',
+        description: error.message,
+        variant: 'destructive',
+      });
+      navigate('/dashboard');
+    } finally {
+      setLoading(false);
     }
-  }, [id, navigate]);
+  };
 
   const addPrize = () => {
     const newPrize: Prize = {
       id: Date.now().toString(),
       name: '',
       percentage: 0,
-      couponCode: ''
+      coupon_code: ''
     };
     setPrizes([...prizes, newPrize]);
   };
@@ -158,49 +213,84 @@ const EditCampaign = () => {
     }
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Atualizar campanha
+      const { error: campaignError } = await supabase
+        .from('campaigns')
+        .update({
+          name: campaignName,
+          collect_data_before: collectDataBefore,
+          thank_you_message: thankYouMessage,
+          wheel_color: wheelColor,
+        })
+        .eq('id', id);
 
-      // Atualizar campanha existente
-      const campaigns = localStorage.getItem('fidelizagiro_campaigns');
-      if (campaigns) {
-        const parsedCampaigns = JSON.parse(campaigns);
-        const updatedCampaigns = parsedCampaigns.map((campaign: any) => {
-          if (campaign.id === id) {
-            return {
-              ...campaign,
-              name: campaignName,
-              prizes: prizes.length,
-              config: {
-                prizes,
-                collectDataBefore,
-                thankYouMessage,
-                wheelColor,
-                customFields
-              }
-            };
-          }
-          return campaign;
-        });
+      if (campaignError) throw campaignError;
 
-        localStorage.setItem('fidelizagiro_campaigns', JSON.stringify(updatedCampaigns));
+      // Deletar prêmios existentes e criar novos
+      await supabase.from('campaign_prizes').delete().eq('campaign_id', id);
+      
+      if (prizes.length > 0) {
+        const prizesToInsert = prizes.map(prize => ({
+          campaign_id: id,
+          name: prize.name,
+          percentage: prize.percentage,
+          coupon_code: prize.coupon_code || null
+        }));
 
-        toast({
-          title: 'Campanha atualizada com sucesso!',
-          description: 'As alterações foram salvas',
-        });
+        const { error: prizesError } = await supabase
+          .from('campaign_prizes')
+          .insert(prizesToInsert);
 
-        navigate('/dashboard');
+        if (prizesError) throw prizesError;
       }
-    } catch (error) {
+
+      // Deletar campos personalizados existentes e criar novos
+      await supabase.from('campaign_custom_fields').delete().eq('campaign_id', id);
+      
+      if (customFields.length > 0) {
+        const fieldsToInsert = customFields.map(field => ({
+          campaign_id: id,
+          name: field.name,
+          type: field.type,
+          required: field.required,
+          placeholder: field.placeholder || null
+        }));
+
+        const { error: fieldsError } = await supabase
+          .from('campaign_custom_fields')
+          .insert(fieldsToInsert);
+
+        if (fieldsError) throw fieldsError;
+      }
+
+      toast({
+        title: 'Campanha atualizada com sucesso!',
+        description: 'As alterações foram salvas',
+      });
+
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Error updating campaign:', error);
       toast({
         title: 'Erro ao atualizar campanha',
-        description: 'Tente novamente em alguns instantes',
+        description: error.message,
         variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-brand-blue"></div>
+          <p className="mt-4 text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -243,7 +333,7 @@ const EditCampaign = () => {
                     </Button>
                   </div>
                   
-                  {customFields.map((field, index) => (
+                  {customFields.map((field) => (
                     <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
                       <div>
                         <Label className="text-sm text-gray-600">Nome do Campo</Label>
@@ -313,7 +403,7 @@ const EditCampaign = () => {
                     </Button>
                   </div>
                   
-                  {prizes.map((prize, index) => (
+                  {prizes.map((prize) => (
                     <div key={prize.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
                       <div>
                         <Label className="text-sm text-gray-600">Nome do Prêmio</Label>
@@ -338,8 +428,8 @@ const EditCampaign = () => {
                         <Label className="text-sm text-gray-600">Código do Cupom</Label>
                         <Input
                           placeholder="Ex: DESC10"
-                          value={prize.couponCode}
-                          onChange={(e) => updatePrize(prize.id, 'couponCode', e.target.value)}
+                          value={prize.coupon_code}
+                          onChange={(e) => updatePrize(prize.id, 'coupon_code', e.target.value)}
                         />
                       </div>
                       <div className="flex items-end">
@@ -398,7 +488,7 @@ const EditCampaign = () => {
                         <Input
                           value={wheelColor}
                           onChange={(e) => setWheelColor(e.target.value)}
-                          placeholder="#007BFF"
+                          placeholder="#3B82F6"
                         />
                       </div>
                     </div>
