@@ -111,25 +111,33 @@ const Dashboard = () => {
       if (error) throw error;
       
       // Transformar os dados do Supabase para o formato esperado pelo ParticipantsModal
-      const transformedParticipants: Participant[] = (data || []).map(participation => ({
-        id: participation.id,
-        campaignId: participation.campaign_id,
-        participant_data: participation.participant_data,
-        hasSpun: participation.has_spun || false,
-        prize_won: participation.prize_won,
-        coupon_code: participation.coupon_code,
-        coupon_used: participation.coupon_used || false,
-        timestamp: participation.created_at || '',
-        created_at: participation.created_at || '',
-        // Propriedades compatíveis com o formato antigo
-        prize: participation.prize_won,
-        couponCode: participation.coupon_code,
-        couponUsed: participation.coupon_used || false
-      }));
+      const transformedParticipants: Participant[] = (data || []).map(participation => {
+        // Extrair dados do participant_data JSON de forma mais robusta
+        const participantData = participation.participant_data || {};
+        
+        console.log('Raw participant data:', participantData);
+        
+        return {
+          id: participation.id,
+          campaignId: participation.campaign_id,
+          participant_data: participantData,
+          hasSpun: participation.has_spun || false,
+          prize_won: participation.prize_won,
+          coupon_code: participation.coupon_code,
+          coupon_used: participation.coupon_used || false,
+          timestamp: participation.created_at || '',
+          created_at: participation.created_at || '',
+          // Propriedades compatíveis com o formato antigo
+          prize: participation.prize_won,
+          couponCode: participation.coupon_code,
+          couponUsed: participation.coupon_used || false
+        };
+      });
       
-      console.log('Participants loaded:', transformedParticipants);
+      console.log('Participants loaded and transformed:', transformedParticipants);
       setParticipants(transformedParticipants);
     } catch (error: any) {
+      console.error('Error loading participants:', error);
       toast({
         title: 'Erro ao carregar participantes',
         description: error.message,

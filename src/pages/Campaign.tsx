@@ -379,13 +379,18 @@ const Campaign = () => {
     }
 
     try {
-      // Criar uma estrutura de dados mais simples para evitar problemas de RLS
+      // Mapear os dados do formulário corretamente
       const participantDataForDb: any = {};
       
-      // Mapear os dados do formulário para uma estrutura mais simples
+      // Mapear cada campo do formulário para o formato correto
       customFields.forEach(field => {
         const value = formData[field.name];
         if (value) {
+          // Usar o nome do campo como chave, convertido para minúsculas
+          const key = field.name.toLowerCase().replace(/\s+/g, '_');
+          participantDataForDb[key] = value;
+          
+          // Adicionar também com o nome original para compatibilidade
           participantDataForDb[field.name] = value;
         }
       });
@@ -441,7 +446,7 @@ const Campaign = () => {
       setShowForm(false);
       setCanSpin(true);
 
-      // Atualizar participantData com os dados salvos
+      // Atualizar participantData com os dados salvos usando os IDs dos campos
       const updatedParticipantData: {[key: string]: string} = {};
       customFields.forEach(field => {
         updatedParticipantData[field.id] = formData[field.name] || '';
