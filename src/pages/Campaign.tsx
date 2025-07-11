@@ -357,24 +357,47 @@ const Campaign = () => {
     }
 
     try {
+      // Criar uma estrutura de dados mais simples para evitar problemas de RLS
+      const participantDataForDb: any = {};
+      
+      // Mapear os dados do formulário para uma estrutura mais simples
+      customFields.forEach(field => {
+        const value = formData[field.name];
+        if (value) {
+          participantDataForDb[field.name] = value;
+        }
+      });
+
+      console.log('Saving participation with data:', participantDataForDb);
+
       // Salvar participação no Supabase
       const { data: participation, error } = await supabase
         .from('participations')
         .insert({
           campaign_id: campaign.id,
-          participant_data: formData, // Salvar todos os dados do formulário
+          participant_data: participantDataForDb,
           has_spun: false
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
-      console.log('Participation saved:', participation);
+      console.log('Participation saved successfully:', participation);
       
       setParticipationId(participation.id);
       setShowForm(false);
       setCanSpin(true);
+
+      // Atualizar participantData com os dados salvos
+      const updatedParticipantData: {[key: string]: string} = {};
+      customFields.forEach(field => {
+        updatedParticipantData[field.id] = formData[field.name] || '';
+      });
+      setParticipantData(updatedParticipantData);
 
       toast({
         title: 'Dados salvos com sucesso!',
@@ -384,7 +407,7 @@ const Campaign = () => {
       console.error('Error saving participation:', error);
       toast({
         title: 'Erro ao salvar dados',
-        description: error.message,
+        description: error.message || 'Ocorreu um erro inesperado',
         variant: 'destructive',
       });
     }
