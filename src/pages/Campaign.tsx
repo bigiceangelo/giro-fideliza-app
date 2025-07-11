@@ -65,6 +65,7 @@ const Campaign = () => {
   useEffect(() => {
     console.log('=== CAMPAIGN LOAD START ===');
     console.log('Campaign ID:', id);
+    console.log('Current user:', supabase.auth.getUser());
     
     const loadCampaign = async () => {
       if (!id) {
@@ -74,7 +75,12 @@ const Campaign = () => {
       }
 
       try {
+        // Log do estado de autenticação
+        const { data: { user } } = await supabase.auth.getUser();
+        console.log('Current authenticated user:', user ? user.id : 'anonymous');
+
         // Buscar a campanha no Supabase
+        console.log('Fetching campaign with ID:', id);
         const { data: campaignData, error: campaignError } = await supabase
           .from('campaigns')
           .select('*')
@@ -95,6 +101,8 @@ const Campaign = () => {
           setLoading(false);
           return;
         }
+
+        console.log('Campaign found:', campaignData);
 
         // Buscar os prêmios da campanha
         const { data: prizesData, error: prizesError } = await supabase
@@ -172,7 +180,7 @@ const Campaign = () => {
         console.log('=== CAMPAIGN LOAD SUCCESS ===');
 
       } catch (error) {
-        console.error('Error loading campaign:', error);
+        console.error('Unexpected error loading campaign:', error);
         setCampaign(null);
         setLoading(false);
         console.log('=== CAMPAIGN LOAD ERROR ===');
@@ -308,7 +316,18 @@ const Campaign = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!campaign) return;
+    console.log('=== FORM SUBMISSION START ===');
+    console.log('Campaign:', campaign?.id);
+    console.log('Form data:', formData);
+    
+    if (!campaign) {
+      console.error('No campaign available');
+      return;
+    }
+
+    // Log do estado de autenticação no momento da submissão
+    const { data: { user } } = await supabase.auth.getUser();
+    console.log('User at submission time:', user ? user.id : 'anonymous');
 
     // Validar campos obrigatórios
     const missingFields = customFields.filter(field => 
@@ -316,6 +335,7 @@ const Campaign = () => {
     );
 
     if (missingFields.length > 0) {
+      console.log('Missing required fields:', missingFields.map(f => f.name));
       toast({
         title: 'Campos obrigatórios não preenchidos',
         description: `Por favor, preencha: ${missingFields.map(f => f.name).join(', ')}`,
@@ -331,6 +351,7 @@ const Campaign = () => {
       const phoneRegex = /^\(\d{2}\)\s\d{4,5}-\d{4}$/;
       
       if (!phoneRegex.test(phoneValue)) {
+        console.log('Invalid phone format:', phoneValue);
         toast({
           title: 'Telefone inválido',
           description: 'Use o formato (11) 99999-9999',
@@ -347,6 +368,7 @@ const Campaign = () => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       
       if (!emailRegex.test(emailValue)) {
+        console.log('Invalid email format:', emailValue);
         toast({
           title: 'Email inválido',
           description: 'Por favor, insira um email válido',
@@ -368,9 +390,31 @@ const Campaign = () => {
         }
       });
 
-      console.log('Saving participation with data:', participantDataForDb);
+      console.log('Data to be saved:', participantDataForDb);
+      console.log('Campaign ID for insertion:', campaign.id);
+
+      // Verificar se a campanha está ativa antes de tentar inserir
+      const { data: campaignCheck, error: checkError } = await supabase
+        .from('campaigns')
+        .select('id, status')
+        .eq('id', campaign.id)
+        .eq('status', 'active')
+        .single();
+
+      if (checkError) {
+        console.error('Error checking campaign status:', checkError);
+        throw new Error('Erro ao verificar status da campanha');
+      }
+
+      if (!campaignCheck) {
+        console.error('Campaign not active or not found');
+        throw new Error('Campanha não está ativa');
+      }
+
+      console.log('Campaign status verified as active:', campaignCheck);
 
       // Salvar participação no Supabase
+      console.log('Attempting to insert participation...');
       const { data: participation, error } = await supabase
         .from('participations')
         .insert({
@@ -382,7 +426,12 @@ const Campaign = () => {
         .single();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('Supabase insertion error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         throw error;
       }
 
@@ -403,8 +452,15 @@ const Campaign = () => {
         title: 'Dados salvos com sucesso!',
         description: 'Agora você pode girar a roda',
       });
+
+      console.log('=== FORM SUBMISSION SUCCESS ===');
     } catch (error: any) {
-      console.error('Error saving participation:', error);
+      console.error('=== FORM SUBMISSION ERROR ===');
+      console.error('Error type:', typeof error);
+      console.error('Error details:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       toast({
         title: 'Erro ao salvar dados',
         description: error.message || 'Ocorreu um erro inesperado',
