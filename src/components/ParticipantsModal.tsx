@@ -15,6 +15,9 @@ interface Participant {
   couponCode?: string;
   couponUsed?: boolean;
   participant_data: any; // Dados do formulário de participação
+  prize_won?: string;
+  coupon_code?: string;
+  coupon_used?: boolean;
   [key: string]: any;
 }
 
@@ -39,16 +42,43 @@ const ParticipantsModal = ({
 
   const toggleCouponStatus = (index: number) => {
     const participant = participants[index];
-    if (!participant.couponCode) return;
+    const currentCouponCode = participant.couponCode || participant.coupon_code;
+    if (!currentCouponCode) return;
+    
+    const currentStatus = participant.couponUsed || participant.coupon_used;
     
     onUpdateParticipant(index, {
-      couponUsed: !participant.couponUsed
+      couponUsed: !currentStatus,
+      coupon_used: !currentStatus
     });
     
     toast({
-      title: participant.couponUsed ? 'Cupom marcado como não usado' : 'Cupom marcado como usado',
-      description: `Cupom ${participant.couponCode}`,
+      title: currentStatus ? 'Cupom marcado como não usado' : 'Cupom marcado como usado',
+      description: `Cupom ${currentCouponCode}`,
     });
+  };
+
+  const extractParticipantValue = (participant: Participant, fieldNames: string[]) => {
+    const data = participant.participant_data || {};
+    
+    for (const fieldName of fieldNames) {
+      // Primeiro tenta o nome original
+      if (data[fieldName]) return data[fieldName];
+      
+      // Depois tenta variações comuns
+      const lowerCase = fieldName.toLowerCase();
+      if (data[lowerCase]) return data[lowerCase];
+      
+      // Tenta com underscore
+      const withUnderscore = lowerCase.replace(/\s+/g, '_');
+      if (data[withUnderscore]) return data[withUnderscore];
+      
+      // Tenta variações sem espaços
+      const noSpaces = fieldName.replace(/\s+/g, '');
+      if (data[noSpaces]) return data[noSpaces];
+    }
+    
+    return 'N/A';
   };
 
   const exportToExcel = () => {
@@ -63,15 +93,17 @@ const ParticipantsModal = ({
 
     // Criar dados para Excel com todos os campos disponíveis
     const headers = ['Nome', 'Email', 'Telefone', 'Prêmio', 'Cupom', 'Status do Cupom', 'Data de Participação'];
-    const rows = participants.map(p => [
-      p.participant_data?.name || p.participant_data?.nome || 'N/A',
-      p.participant_data?.email || 'N/A', 
-      p.participant_data?.phone || p.participant_data?.telefone || 'N/A',
-      p.prize_won || p.prize || 'Não girou',
-      p.coupon_code || p.couponCode || 'N/A',
-      p.coupon_used || p.couponUsed ? 'Usado' : 'Não usado',
-      new Date(p.timestamp || p.created_at).toLocaleDateString('pt-BR')
-    ]);
+    const rows = participants.map(p => {
+      const nome = extractParticipantValue(p, ['Nome', 'name', 'nome']);
+      const email = extractParticipantValue(p, ['Email', 'email']);
+      const telefone = extractParticipantValue(p, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
+      const premio = p.prize_won || p.prize || 'Não girou';
+      const cupom = p.coupon_code || p.couponCode || 'N/A';
+      const statusCupom = (p.coupon_used || p.couponUsed) ? 'Usado' : 'Não usado';
+      const data = new Date(p.timestamp || p.created_at).toLocaleDateString('pt-BR');
+      
+      return [nome, email, telefone, premio, cupom, statusCupom, data];
+    });
 
     // Criar CSV (Excel pode abrir CSV)
     const csvContent = [headers, ...rows]
@@ -124,52 +156,57 @@ const ParticipantsModal = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {participants.map((participant, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">
-                      {participant.participant_data?.name || participant.participant_data?.nome || 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      {participant.participant_data?.email || 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      {participant.participant_data?.phone || participant.participant_data?.telefone || 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      {participant.prize_won || participant.prize ? (
-                        <Badge variant="default">{participant.prize_won || participant.prize}</Badge>
-                      ) : (
-                        <Badge variant="secondary">Não girou</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{participant.coupon_code || participant.couponCode || 'N/A'}</TableCell>
-                    <TableCell>
-                      {(participant.coupon_code || participant.couponCode) && (
-                        <Badge variant={(participant.coupon_used || participant.couponUsed) ? "destructive" : "default"}>
-                          {(participant.coupon_used || participant.couponUsed) ? 'Usado' : 'Não usado'}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(participant.timestamp || participant.created_at).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell>
-                      {(participant.coupon_code || participant.couponCode) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => toggleCouponStatus(index)}
-                        >
-                          {(participant.coupon_used || participant.couponUsed) ? (
-                            <X className="w-4 h-4" />
-                          ) : (
-                            <Check className="w-4 h-4" />
-                          )}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {participants.map((participant, index) => {
+                  console.log('Participant data for display:', participant);
+                  
+                  const nome = extractParticipantValue(participant, ['Nome', 'name', 'nome']);
+                  const email = extractParticipantValue(participant, ['Email', 'email']);
+                  const telefone = extractParticipantValue(participant, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
+                  const premio = participant.prize_won || participant.prize;
+                  const cupom = participant.coupon_code || participant.couponCode;
+                  const cupomUsed = participant.coupon_used || participant.couponUsed;
+                  
+                  return (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{nome}</TableCell>
+                      <TableCell>{email}</TableCell>
+                      <TableCell>{telefone}</TableCell>
+                      <TableCell>
+                        {premio ? (
+                          <Badge variant="default">{premio}</Badge>
+                        ) : (
+                          <Badge variant="secondary">Não girou</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{cupom || 'N/A'}</TableCell>
+                      <TableCell>
+                        {cupom && (
+                          <Badge variant={cupomUsed ? "destructive" : "default"}>
+                            {cupomUsed ? 'Usado' : 'Não usado'}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(participant.timestamp || participant.created_at).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                      <TableCell>
+                        {cupom && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => toggleCouponStatus(index)}
+                          >
+                            {cupomUsed ? (
+                              <X className="w-4 h-4" />
+                            ) : (
+                              <Check className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
