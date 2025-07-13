@@ -200,22 +200,26 @@ const Campaign = () => {
         const value = participantData[field.id] || '';
         if (value) {
           participantDataPayload[field.name.toLowerCase()] = value;
+          participantDataPayload[field.name] = value;
         }
       });
     }
 
+    // CRITICAL FIX: Ensure prize data is properly structured
     const participation = {
       campaign_id: id,
       participant_data: participantDataPayload,
-      has_spun: !!prize,
-      ...(prize && {
-        prize_won: prize.name,
-        coupon_code: prize.couponCode
-      })
+      has_spun: prize ? true : false,
+      prize_won: prize ? prize.name : null,
+      coupon_code: prize ? prize.couponCode : null,
+      coupon_used: false
     };
 
-    console.log('=== CREATING PARTICIPATION ===');
-    console.log('Participation data to save:', participation);
+    console.log('=== CREATING PARTICIPATION WITH PRIZE ===');
+    console.log('Prize object received:', prize);
+    console.log('Participation data being saved:', participation);
+    console.log('Prize name being saved:', participation.prize_won);
+    console.log('Coupon code being saved:', participation.coupon_code);
 
     try {
       const { data, error } = await supabase
@@ -229,8 +233,13 @@ const Campaign = () => {
         return null;
       }
 
+      console.log('=== PARTICIPATION SAVED SUCCESSFULLY ===');
+      console.log('Returned data from database:', data);
+      console.log('Saved prize_won:', data.prize_won);
+      console.log('Saved coupon_code:', data.coupon_code);
+      console.log('Saved has_spun:', data.has_spun);
+
       setParticipationId(data.id);
-      console.log('Participation created successfully:', data);
       return data.id;
     } catch (error) {
       console.error('Error creating participation:', error);
@@ -239,32 +248,34 @@ const Campaign = () => {
   };
 
   const handlePrizeWon = async (prize: Prize) => {
-    console.log('=== PRIZE WON ===');
-    console.log('Prize object:', prize);
+    console.log('=== HANDLE PRIZE WON - START ===');
+    console.log('Prize received in handlePrizeWon:', prize);
     console.log('Prize name:', prize.name);
-    console.log('Prize coupon:', prize.couponCode);
+    console.log('Prize coupon code:', prize.couponCode);
+    console.log('Current participation ID:', participationId);
+    console.log('Collect data before?', campaign?.config.collectDataBefore);
     
     setWonPrize(prize);
     setHasSpun(true);
     setIsSpinning(false);
     
     if (campaign?.config.collectDataBefore && participationId) {
-      console.log('Updating existing participation with prize data');
-      console.log('Participation ID:', participationId);
-      console.log('Prize data to update:', {
+      console.log('=== UPDATING EXISTING PARTICIPATION ===');
+      console.log('Updating participation ID:', participationId);
+      
+      const updateData = {
         prize_won: prize.name,
         coupon_code: prize.couponCode,
-        has_spun: true
-      });
+        has_spun: true,
+        coupon_used: false
+      };
+      
+      console.log('Update data being sent to database:', updateData);
       
       try {
         const { data, error } = await supabase
           .from('participations')
-          .update({
-            prize_won: prize.name,
-            coupon_code: prize.couponCode,
-            has_spun: true
-          })
+          .update(updateData)
           .eq('id', participationId)
           .select()
           .single();
@@ -272,13 +283,17 @@ const Campaign = () => {
         if (error) {
           console.error('Error updating participation with prize:', error);
         } else {
-          console.log('Successfully updated participation with prize:', data);
+          console.log('=== PARTICIPATION UPDATED SUCCESSFULLY ===');
+          console.log('Updated participation data:', data);
+          console.log('Updated prize_won:', data.prize_won);
+          console.log('Updated coupon_code:', data.coupon_code);
+          console.log('Updated has_spun:', data.has_spun);
         }
       } catch (error) {
         console.error('Error updating participation:', error);
       }
     } else {
-      console.log('Creating new participation with prize data');
+      console.log('=== CREATING NEW PARTICIPATION WITH PRIZE ===');
       await createParticipation(prize);
     }
 
@@ -286,9 +301,13 @@ const Campaign = () => {
       title: 'Parabéns! 🎉',
       description: `Você ganhou: ${prize.name}`,
     });
+    
+    console.log('=== HANDLE PRIZE WON - END ===');
   };
 
   const handleSpin = (prize: Prize) => {
+    console.log('=== HANDLE SPIN CALLED ===');
+    console.log('Prize passed to handleSpin:', prize);
     handlePrizeWon(prize);
   };
 

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -44,10 +43,10 @@ const ParticipantsModal = ({
 
   const toggleCouponStatus = (index: number) => {
     const participant = participants[index];
-    const currentCouponCode = participant.couponCode || participant.coupon_code;
+    const currentCouponCode = participant.coupon_code || participant.couponCode;
     if (!currentCouponCode) return;
     
-    const currentStatus = participant.couponUsed || participant.coupon_used;
+    const currentStatus = participant.coupon_used || participant.couponUsed;
     
     onUpdateParticipant(index, {
       couponUsed: !currentStatus,
@@ -63,24 +62,18 @@ const ParticipantsModal = ({
   const extractParticipantValue = (participant: Participant, fieldNames: string[]) => {
     const data = participant.participant_data || {};
     
-    // Primeiro tentar acessar os dados diretamente do participant_data
     for (const fieldName of fieldNames) {
-      // Tenta o nome original
       if (data[fieldName] && data[fieldName] !== '') return data[fieldName];
       
-      // Tenta variações em minúsculas
       const lowerCase = fieldName.toLowerCase();
       if (data[lowerCase] && data[lowerCase] !== '') return data[lowerCase];
       
-      // Tenta com underscore
       const withUnderscore = lowerCase.replace(/\s+/g, '_');
       if (data[withUnderscore] && data[withUnderscore] !== '') return data[withUnderscore];
       
-      // Tenta variações sem espaços
       const noSpaces = fieldName.replace(/\s+/g, '');
       if (data[noSpaces] && data[noSpaces] !== '') return data[noSpaces];
       
-      // Tenta primeira letra maiúscula
       const capitalized = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).toLowerCase();
       if (data[capitalized] && data[capitalized] !== '') return data[capitalized];
     }
@@ -162,34 +155,37 @@ const ParticipantsModal = ({
               </TableHeader>
               <TableBody>
                 {participants.map((participant, index) => {
-                  console.log(`=== PARTICIPANT ${index} DEBUG ===`);
-                  console.log('Full participant object:', participant);
-                  console.log('Has spun?', participant.has_spun || participant.hasSpun);
-                  console.log('Prize won:', participant.prize_won);
-                  console.log('Coupon code:', participant.coupon_code);
+                  console.log(`=== PARTICIPANT ${index} DETAILED DEBUG ===`);
+                  console.log('Full participant object:', JSON.stringify(participant, null, 2));
                   
                   const nome = extractParticipantValue(participant, ['Nome', 'name', 'nome']);
                   const email = extractParticipantValue(participant, ['Email', 'email']);
                   const telefone = extractParticipantValue(participant, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
                   
-                  // Verificar se participante girou a roda
-                  const hasSpun = participant.has_spun || participant.hasSpun;
+                  // CRITICAL FIX: Check for has_spun directly from the database
+                  const hasSpun = participant.has_spun === true;
+                  console.log('Has spun (direct from DB):', hasSpun);
                   
-                  // Buscar prêmio nos diferentes campos possíveis
-                  const premio = participant.prize_won || participant.prize;
+                  // CRITICAL FIX: Get prize_won directly from the database
+                  const premio = participant.prize_won;
+                  console.log('Prize won (direct from DB):', premio);
                   
-                  // Buscar cupom nos diferentes campos possíveis
-                  const cupom = participant.coupon_code || participant.couponCode;
+                  // CRITICAL FIX: Get coupon_code directly from the database
+                  const cupom = participant.coupon_code;
+                  console.log('Coupon code (direct from DB):', cupom);
                   
                   // Status do cupom
-                  const cupomUsed = participant.coupon_used || participant.couponUsed;
+                  const cupomUsed = participant.coupon_used === true;
+                  console.log('Coupon used (direct from DB):', cupomUsed);
                   
-                  console.log('Final values:', {
-                    hasSpun,
-                    premio,
-                    cupom,
-                    cupomUsed
-                  });
+                  console.log('=== FINAL DISPLAY VALUES ===');
+                  console.log('Nome:', nome);
+                  console.log('Email:', email);
+                  console.log('Telefone:', telefone);
+                  console.log('Has Spun:', hasSpun);
+                  console.log('Prize:', premio);
+                  console.log('Coupon:', cupom);
+                  console.log('Coupon Used:', cupomUsed);
                   
                   return (
                     <TableRow key={index}>
@@ -209,17 +205,17 @@ const ParticipantsModal = ({
                       </TableCell>
                       <TableCell>{cupom || 'N/A'}</TableCell>
                       <TableCell>
-                        {cupom && (
+                        {cupom ? (
                           <Badge variant={cupomUsed ? "destructive" : "default"}>
                             {cupomUsed ? 'Usado' : 'Não usado'}
                           </Badge>
-                        )}
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         {new Date(participant.timestamp || participant.created_at || participant.createdAt).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell>
-                        {cupom && (
+                        {cupom ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -231,7 +227,7 @@ const ParticipantsModal = ({
                               <Check className="w-4 h-4" />
                             )}
                           </Button>
-                        )}
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );
