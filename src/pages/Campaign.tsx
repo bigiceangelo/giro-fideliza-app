@@ -205,26 +205,27 @@ const Campaign = () => {
       });
     }
 
-    // CRITICAL FIX: Ensure prize data is properly structured
-    const participation = {
+    // CRITICAL FIX: Construir objeto de participação com estrutura correta
+    const participationData = {
       campaign_id: id,
       participant_data: participantDataPayload,
-      has_spun: prize ? true : false,
-      prize_won: prize ? prize.name : null,
-      coupon_code: prize ? prize.couponCode : null,
+      has_spun: !!prize,  // true se ganhou prêmio, false se ainda não girou
+      prize_won: prize?.name || null,
+      coupon_code: prize?.couponCode || null,
       coupon_used: false
     };
 
-    console.log('=== CREATING PARTICIPATION WITH PRIZE ===');
-    console.log('Prize object received:', prize);
-    console.log('Participation data being saved:', participation);
-    console.log('Prize name being saved:', participation.prize_won);
-    console.log('Coupon code being saved:', participation.coupon_code);
+    console.log('=== CREATING PARTICIPATION ===');
+    console.log('Prize object:', prize);
+    console.log('Participation data to save:', participationData);
+    console.log('Prize name:', participationData.prize_won);
+    console.log('Coupon code:', participationData.coupon_code);
+    console.log('Has spun:', participationData.has_spun);
 
     try {
       const { data, error } = await supabase
         .from('participations')
-        .insert([participation])
+        .insert([participationData])
         .select()
         .single();
 
@@ -234,10 +235,10 @@ const Campaign = () => {
       }
 
       console.log('=== PARTICIPATION SAVED SUCCESSFULLY ===');
-      console.log('Returned data from database:', data);
-      console.log('Saved prize_won:', data.prize_won);
-      console.log('Saved coupon_code:', data.coupon_code);
-      console.log('Saved has_spun:', data.has_spun);
+      console.log('Database response:', data);
+      console.log('Confirmed prize_won in DB:', data.prize_won);
+      console.log('Confirmed coupon_code in DB:', data.coupon_code);
+      console.log('Confirmed has_spun in DB:', data.has_spun);
 
       setParticipationId(data.id);
       return data.id;
@@ -249,11 +250,10 @@ const Campaign = () => {
 
   const handlePrizeWon = async (prize: Prize) => {
     console.log('=== HANDLE PRIZE WON - START ===');
-    console.log('Prize received in handlePrizeWon:', prize);
+    console.log('Prize received:', prize);
     console.log('Prize name:', prize.name);
     console.log('Prize coupon code:', prize.couponCode);
     console.log('Current participation ID:', participationId);
-    console.log('Collect data before?', campaign?.config.collectDataBefore);
     
     setWonPrize(prize);
     setHasSpun(true);
@@ -261,7 +261,6 @@ const Campaign = () => {
     
     if (campaign?.config.collectDataBefore && participationId) {
       console.log('=== UPDATING EXISTING PARTICIPATION ===');
-      console.log('Updating participation ID:', participationId);
       
       const updateData = {
         prize_won: prize.name,
@@ -270,7 +269,7 @@ const Campaign = () => {
         coupon_used: false
       };
       
-      console.log('Update data being sent to database:', updateData);
+      console.log('Update data:', updateData);
       
       try {
         const { data, error } = await supabase
@@ -281,20 +280,23 @@ const Campaign = () => {
           .single();
 
         if (error) {
-          console.error('Error updating participation with prize:', error);
+          console.error('Error updating participation:', error);
         } else {
           console.log('=== PARTICIPATION UPDATED SUCCESSFULLY ===');
-          console.log('Updated participation data:', data);
-          console.log('Updated prize_won:', data.prize_won);
-          console.log('Updated coupon_code:', data.coupon_code);
-          console.log('Updated has_spun:', data.has_spun);
+          console.log('Updated data in DB:', data);
+          console.log('Final prize_won:', data.prize_won);
+          console.log('Final coupon_code:', data.coupon_code);
+          console.log('Final has_spun:', data.has_spun);
         }
       } catch (error) {
         console.error('Error updating participation:', error);
       }
     } else {
       console.log('=== CREATING NEW PARTICIPATION WITH PRIZE ===');
-      await createParticipation(prize);
+      const newParticipationId = await createParticipation(prize);
+      if (newParticipationId) {
+        console.log('New participation created with ID:', newParticipationId);
+      }
     }
 
     toast({

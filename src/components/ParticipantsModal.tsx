@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -96,9 +97,16 @@ const ParticipantsModal = ({
       const nome = extractParticipantValue(p, ['Nome', 'name', 'nome']);
       const email = extractParticipantValue(p, ['Email', 'email']);
       const telefone = extractParticipantValue(p, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
-      const premio = p.prize_won || p.prize || 'Não girou';
-      const cupom = p.coupon_code || p.couponCode || 'N/A';
-      const statusCupom = (p.coupon_used || p.couponUsed) ? 'Usado' : 'Não usado';
+      
+      // CRITICAL FIX: Usar dados diretos do banco
+      const hasSpun = p.has_spun === true;
+      const prizeWon = p.prize_won;
+      const couponCode = p.coupon_code;
+      const couponUsed = p.coupon_used === true;
+      
+      const premio = hasSpun ? (prizeWon || 'Girou - sem prêmio') : 'Não girou';
+      const cupom = couponCode || 'N/A';
+      const statusCupom = couponUsed ? 'Usado' : 'Não usado';
       const data = new Date(p.timestamp || p.created_at || p.createdAt).toLocaleDateString('pt-BR');
       
       return [nome, email, telefone, premio, cupom, statusCupom, data];
@@ -155,37 +163,24 @@ const ParticipantsModal = ({
               </TableHeader>
               <TableBody>
                 {participants.map((participant, index) => {
-                  console.log(`=== PARTICIPANT ${index} DETAILED DEBUG ===`);
-                  console.log('Full participant object:', JSON.stringify(participant, null, 2));
+                  console.log('=== RENDERING PARTICIPANT ===');
+                  console.log('Full participant object:', participant);
                   
                   const nome = extractParticipantValue(participant, ['Nome', 'name', 'nome']);
                   const email = extractParticipantValue(participant, ['Email', 'email']);
                   const telefone = extractParticipantValue(participant, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
                   
-                  // CRITICAL FIX: Check for has_spun directly from the database
+                  // CRITICAL FIX: Usar dados diretos do banco de dados
                   const hasSpun = participant.has_spun === true;
-                  console.log('Has spun (direct from DB):', hasSpun);
+                  const prizeWon = participant.prize_won;
+                  const couponCode = participant.coupon_code;
+                  const couponUsed = participant.coupon_used === true;
                   
-                  // CRITICAL FIX: Get prize_won directly from the database
-                  const premio = participant.prize_won;
-                  console.log('Prize won (direct from DB):', premio);
-                  
-                  // CRITICAL FIX: Get coupon_code directly from the database
-                  const cupom = participant.coupon_code;
-                  console.log('Coupon code (direct from DB):', cupom);
-                  
-                  // Status do cupom
-                  const cupomUsed = participant.coupon_used === true;
-                  console.log('Coupon used (direct from DB):', cupomUsed);
-                  
-                  console.log('=== FINAL DISPLAY VALUES ===');
-                  console.log('Nome:', nome);
-                  console.log('Email:', email);
-                  console.log('Telefone:', telefone);
-                  console.log('Has Spun:', hasSpun);
-                  console.log('Prize:', premio);
-                  console.log('Coupon:', cupom);
-                  console.log('Coupon Used:', cupomUsed);
+                  console.log('=== EXTRACTED VALUES ===');
+                  console.log('Has spun:', hasSpun);
+                  console.log('Prize won:', prizeWon);
+                  console.log('Coupon code:', couponCode);
+                  console.log('Coupon used:', couponUsed);
                   
                   return (
                     <TableRow key={index}>
@@ -194,8 +189,8 @@ const ParticipantsModal = ({
                       <TableCell>{telefone}</TableCell>
                       <TableCell>
                         {hasSpun ? (
-                          premio ? (
-                            <Badge variant="default">{premio}</Badge>
+                          prizeWon ? (
+                            <Badge variant="default">{prizeWon}</Badge>
                           ) : (
                             <Badge variant="secondary">Girou - sem prêmio</Badge>
                           )
@@ -203,11 +198,11 @@ const ParticipantsModal = ({
                           <Badge variant="secondary">Não girou</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{cupom || 'N/A'}</TableCell>
+                      <TableCell>{couponCode || 'N/A'}</TableCell>
                       <TableCell>
-                        {cupom ? (
-                          <Badge variant={cupomUsed ? "destructive" : "default"}>
-                            {cupomUsed ? 'Usado' : 'Não usado'}
+                        {couponCode ? (
+                          <Badge variant={couponUsed ? "destructive" : "default"}>
+                            {couponUsed ? 'Usado' : 'Não usado'}
                           </Badge>
                         ) : null}
                       </TableCell>
@@ -215,13 +210,13 @@ const ParticipantsModal = ({
                         {new Date(participant.timestamp || participant.created_at || participant.createdAt).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell>
-                        {cupom ? (
+                        {couponCode ? (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => toggleCouponStatus(index)}
                           >
-                            {cupomUsed ? (
+                            {couponUsed ? (
                               <X className="w-4 h-4" />
                             ) : (
                               <Check className="w-4 h-4" />
