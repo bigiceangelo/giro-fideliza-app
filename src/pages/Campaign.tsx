@@ -214,6 +214,9 @@ const Campaign = () => {
       })
     };
 
+    console.log('=== CREATING PARTICIPATION ===');
+    console.log('Participation data to save:', participation);
+
     try {
       const { data, error } = await supabase
         .from('participations')
@@ -227,7 +230,7 @@ const Campaign = () => {
       }
 
       setParticipationId(data.id);
-      console.log('Participation created:', data);
+      console.log('Participation created successfully:', data);
       return data.id;
     } catch (error) {
       console.error('Error creating participation:', error);
@@ -237,7 +240,7 @@ const Campaign = () => {
 
   const handlePrizeWon = async (prize: Prize) => {
     console.log('=== PRIZE WON ===');
-    console.log('Prize:', prize);
+    console.log('Prize object:', prize);
     console.log('Prize name:', prize.name);
     console.log('Prize coupon:', prize.couponCode);
     
@@ -247,23 +250,29 @@ const Campaign = () => {
     
     if (campaign?.config.collectDataBefore && participationId) {
       console.log('Updating existing participation with prize data');
+      console.log('Participation ID:', participationId);
+      console.log('Prize data to update:', {
+        prize_won: prize.name,
+        coupon_code: prize.couponCode,
+        has_spun: true
+      });
+      
       try {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('participations')
           .update({
             prize_won: prize.name,
             coupon_code: prize.couponCode,
             has_spun: true
           })
-          .eq('id', participationId);
+          .eq('id', participationId)
+          .select()
+          .single();
 
         if (error) {
           console.error('Error updating participation with prize:', error);
         } else {
-          console.log('Successfully updated participation with prize:', {
-            prize_won: prize.name,
-            coupon_code: prize.couponCode
-          });
+          console.log('Successfully updated participation with prize:', data);
         }
       } catch (error) {
         console.error('Error updating participation:', error);

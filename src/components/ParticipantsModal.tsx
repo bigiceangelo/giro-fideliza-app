@@ -19,6 +19,7 @@ interface Participant {
   coupon_code?: string;
   coupon_used?: boolean;
   created_at?: string;
+  has_spun?: boolean;
   [key: string]: any;
 }
 
@@ -161,24 +162,33 @@ const ParticipantsModal = ({
               </TableHeader>
               <TableBody>
                 {participants.map((participant, index) => {
-                  console.log('Displaying participant:', participant);
+                  console.log(`=== PARTICIPANT ${index} DEBUG ===`);
+                  console.log('Full participant object:', participant);
+                  console.log('Has spun?', participant.has_spun || participant.hasSpun);
+                  console.log('Prize won:', participant.prize_won);
+                  console.log('Coupon code:', participant.coupon_code);
                   
                   const nome = extractParticipantValue(participant, ['Nome', 'name', 'nome']);
                   const email = extractParticipantValue(participant, ['Email', 'email']);
                   const telefone = extractParticipantValue(participant, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
                   
-                  // Verificar prêmio e cupom com mais debug
+                  // Verificar se participante girou a roda
+                  const hasSpun = participant.has_spun || participant.hasSpun;
+                  
+                  // Buscar prêmio nos diferentes campos possíveis
                   const premio = participant.prize_won || participant.prize;
+                  
+                  // Buscar cupom nos diferentes campos possíveis
                   const cupom = participant.coupon_code || participant.couponCode;
+                  
+                  // Status do cupom
                   const cupomUsed = participant.coupon_used || participant.couponUsed;
                   
-                  console.log('Prize data for participant:', {
-                    prize_won: participant.prize_won,
-                    prize: participant.prize,
-                    coupon_code: participant.coupon_code,
-                    couponCode: participant.couponCode,
-                    final_premio: premio,
-                    final_cupom: cupom
+                  console.log('Final values:', {
+                    hasSpun,
+                    premio,
+                    cupom,
+                    cupomUsed
                   });
                   
                   return (
@@ -187,8 +197,12 @@ const ParticipantsModal = ({
                       <TableCell>{email}</TableCell>
                       <TableCell>{telefone}</TableCell>
                       <TableCell>
-                        {premio ? (
-                          <Badge variant="default">{premio}</Badge>
+                        {hasSpun ? (
+                          premio ? (
+                            <Badge variant="default">{premio}</Badge>
+                          ) : (
+                            <Badge variant="secondary">Girou - sem prêmio</Badge>
+                          )
                         ) : (
                           <Badge variant="secondary">Não girou</Badge>
                         )}
