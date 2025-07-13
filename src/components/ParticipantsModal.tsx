@@ -14,10 +14,11 @@ interface Participant {
   prize?: string;
   couponCode?: string;
   couponUsed?: boolean;
-  participant_data: any; // Dados do formulário de participação
+  participant_data: any;
   prize_won?: string;
   coupon_code?: string;
   coupon_used?: boolean;
+  created_at?: string;
   [key: string]: any;
 }
 
@@ -61,21 +62,26 @@ const ParticipantsModal = ({
   const extractParticipantValue = (participant: Participant, fieldNames: string[]) => {
     const data = participant.participant_data || {};
     
+    // Primeiro tentar acessar os dados diretamente do participant_data
     for (const fieldName of fieldNames) {
-      // Primeiro tenta o nome original
-      if (data[fieldName]) return data[fieldName];
+      // Tenta o nome original
+      if (data[fieldName] && data[fieldName] !== '') return data[fieldName];
       
-      // Depois tenta variações comuns
+      // Tenta variações em minúsculas
       const lowerCase = fieldName.toLowerCase();
-      if (data[lowerCase]) return data[lowerCase];
+      if (data[lowerCase] && data[lowerCase] !== '') return data[lowerCase];
       
       // Tenta com underscore
       const withUnderscore = lowerCase.replace(/\s+/g, '_');
-      if (data[withUnderscore]) return data[withUnderscore];
+      if (data[withUnderscore] && data[withUnderscore] !== '') return data[withUnderscore];
       
       // Tenta variações sem espaços
       const noSpaces = fieldName.replace(/\s+/g, '');
-      if (data[noSpaces]) return data[noSpaces];
+      if (data[noSpaces] && data[noSpaces] !== '') return data[noSpaces];
+      
+      // Tenta primeira letra maiúscula
+      const capitalized = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).toLowerCase();
+      if (data[capitalized] && data[capitalized] !== '') return data[capitalized];
     }
     
     return 'N/A';
@@ -91,7 +97,6 @@ const ParticipantsModal = ({
       return;
     }
 
-    // Criar dados para Excel com todos os campos disponíveis
     const headers = ['Nome', 'Email', 'Telefone', 'Prêmio', 'Cupom', 'Status do Cupom', 'Data de Participação'];
     const rows = participants.map(p => {
       const nome = extractParticipantValue(p, ['Nome', 'name', 'nome']);
@@ -100,12 +105,11 @@ const ParticipantsModal = ({
       const premio = p.prize_won || p.prize || 'Não girou';
       const cupom = p.coupon_code || p.couponCode || 'N/A';
       const statusCupom = (p.coupon_used || p.couponUsed) ? 'Usado' : 'Não usado';
-      const data = new Date(p.timestamp || p.created_at).toLocaleDateString('pt-BR');
+      const data = new Date(p.timestamp || p.created_at || p.createdAt).toLocaleDateString('pt-BR');
       
       return [nome, email, telefone, premio, cupom, statusCupom, data];
     });
 
-    // Criar CSV (Excel pode abrir CSV)
     const csvContent = [headers, ...rows]
       .map(row => row.map(cell => `"${cell}"`).join(','))
       .join('\n');
@@ -157,14 +161,25 @@ const ParticipantsModal = ({
               </TableHeader>
               <TableBody>
                 {participants.map((participant, index) => {
-                  console.log('Participant data for display:', participant);
+                  console.log('Displaying participant:', participant);
                   
                   const nome = extractParticipantValue(participant, ['Nome', 'name', 'nome']);
                   const email = extractParticipantValue(participant, ['Email', 'email']);
                   const telefone = extractParticipantValue(participant, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
+                  
+                  // Verificar prêmio e cupom com mais debug
                   const premio = participant.prize_won || participant.prize;
                   const cupom = participant.coupon_code || participant.couponCode;
                   const cupomUsed = participant.coupon_used || participant.couponUsed;
+                  
+                  console.log('Prize data for participant:', {
+                    prize_won: participant.prize_won,
+                    prize: participant.prize,
+                    coupon_code: participant.coupon_code,
+                    couponCode: participant.couponCode,
+                    final_premio: premio,
+                    final_cupom: cupom
+                  });
                   
                   return (
                     <TableRow key={index}>
@@ -187,7 +202,7 @@ const ParticipantsModal = ({
                         )}
                       </TableCell>
                       <TableCell>
-                        {new Date(participant.timestamp || participant.created_at).toLocaleDateString('pt-BR')}
+                        {new Date(participant.timestamp || participant.created_at || participant.createdAt).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell>
                         {cupom && (

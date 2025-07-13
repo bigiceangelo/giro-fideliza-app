@@ -235,41 +235,18 @@ const Campaign = () => {
     }
   };
 
-  const updateParticipationWithData = async (participationId: string) => {
-    if (!campaign?.config.customFields) return;
-
-    const participantDataPayload: any = {};
-    campaign.config.customFields.forEach(field => {
-      participantDataPayload[field.name.toLowerCase()] = participantData[field.id] || '';
-    });
-
-    try {
-      const { error } = await supabase
-        .from('participations')
-        .update({
-          participant_data: participantDataPayload
-        })
-        .eq('id', participationId);
-
-      if (error) {
-        console.error('Error updating participation:', error);
-      } else {
-        console.log('Participation updated with data');
-      }
-    } catch (error) {
-      console.error('Error updating participation:', error);
-    }
-  };
-
   const handlePrizeWon = async (prize: Prize) => {
     console.log('=== PRIZE WON ===');
-    console.log('Prize:', prize.name);
+    console.log('Prize:', prize);
+    console.log('Prize name:', prize.name);
+    console.log('Prize coupon:', prize.couponCode);
     
     setWonPrize(prize);
     setHasSpun(true);
     setIsSpinning(false);
     
     if (campaign?.config.collectDataBefore && participationId) {
+      console.log('Updating existing participation with prize data');
       try {
         const { error } = await supabase
           .from('participations')
@@ -283,12 +260,16 @@ const Campaign = () => {
         if (error) {
           console.error('Error updating participation with prize:', error);
         } else {
-          console.log('Updated existing participation with prize');
+          console.log('Successfully updated participation with prize:', {
+            prize_won: prize.name,
+            coupon_code: prize.couponCode
+          });
         }
       } catch (error) {
         console.error('Error updating participation:', error);
       }
     } else {
+      console.log('Creating new participation with prize data');
       await createParticipation(prize);
     }
 
@@ -325,11 +306,9 @@ const Campaign = () => {
       return;
     }
 
-    // Log do estado de autenticação no momento da submissão
     const { data: { user } } = await supabase.auth.getUser();
     console.log('User at submission time:', user ? user.id : 'anonymous');
 
-    // Validar campos obrigatórios
     const missingFields = customFields.filter(field => 
       field.required && !formData[field.name]?.trim()
     );
@@ -344,7 +323,6 @@ const Campaign = () => {
       return;
     }
 
-    // Validar formato do telefone se existir
     const phoneField = customFields.find(field => field.type === 'phone');
     if (phoneField && formData[phoneField.name]) {
       const phoneValue = formData[phoneField.name];
@@ -361,7 +339,6 @@ const Campaign = () => {
       }
     }
 
-    // Validar formato do email se existir
     const emailField = customFields.find(field => field.type === 'email');
     if (emailField && formData[emailField.name]) {
       const emailValue = formData[emailField.name];
@@ -379,18 +356,13 @@ const Campaign = () => {
     }
 
     try {
-      // Mapear os dados do formulário corretamente
       const participantDataForDb: any = {};
       
-      // Mapear cada campo do formulário para o formato correto
       customFields.forEach(field => {
         const value = formData[field.name];
         if (value) {
-          // Usar o nome do campo como chave, convertido para minúsculas
           const key = field.name.toLowerCase().replace(/\s+/g, '_');
           participantDataForDb[key] = value;
-          
-          // Adicionar também com o nome original para compatibilidade
           participantDataForDb[field.name] = value;
         }
       });
@@ -398,7 +370,6 @@ const Campaign = () => {
       console.log('Data to be saved:', participantDataForDb);
       console.log('Campaign ID for insertion:', campaign.id);
 
-      // Verificar se a campanha está ativa antes de tentar inserir
       const { data: campaignCheck, error: checkError } = await supabase
         .from('campaigns')
         .select('id, status')
@@ -418,7 +389,6 @@ const Campaign = () => {
 
       console.log('Campaign status verified as active:', campaignCheck);
 
-      // Salvar participação no Supabase
       console.log('Attempting to insert participation...');
       const { data: participation, error } = await supabase
         .from('participations')
@@ -446,7 +416,6 @@ const Campaign = () => {
       setShowForm(false);
       setCanSpin(true);
 
-      // Atualizar participantData com os dados salvos usando os IDs dos campos
       const updatedParticipantData: {[key: string]: string} = {};
       customFields.forEach(field => {
         updatedParticipantData[field.id] = formData[field.name] || '';
@@ -475,10 +444,8 @@ const Campaign = () => {
   };
 
   const formatPhoneInput = (value: string, fieldName: string) => {
-    // Remove tudo que não é dígito
     const digits = value.replace(/\D/g, '');
     
-    // Aplica a máscara (11) 99999-9999
     let formatted = digits;
     if (digits.length >= 2) {
       formatted = `(${digits.slice(0, 2)})`;
