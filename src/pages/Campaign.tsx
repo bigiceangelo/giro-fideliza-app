@@ -229,18 +229,18 @@ const Campaign = () => {
   };
 
   const renderDataForm = () => (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="container mx-auto max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mb-4 shadow-lg">
             <Gift className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Participe da Nossa Campanha!</h2>
           <p className="text-gray-600">Preencha seus dados para concorrer</p>
         </div>
 
-        <Card className="shadow-lg">
+        <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardContent className="p-6">
             <form onSubmit={handleFormSubmit} className="space-y-4">
               {campaign.campaign_custom_fields.map(field => (
@@ -254,13 +254,13 @@ const Campaign = () => {
                     name={field.name}
                     placeholder={field.placeholder}
                     required={field.required}
-                    className="h-10"
+                    className="h-10 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
                   />
                 </div>
               ))}
               <Button 
                 disabled={isLoading} 
-                className="w-full h-12 bg-blue-500 hover:bg-blue-600 text-white font-medium"
+                className="w-full h-12 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200"
               >
                 {isLoading ? 'Enviando...' : 'Participar Agora'}
               </Button>
@@ -281,45 +281,45 @@ const Campaign = () => {
   };
 
   const renderResultPopup = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-md text-center shadow-2xl animate-scale-in">
-        <CardHeader className="pb-4 relative">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md text-center shadow-2xl animate-scale-in border-0 bg-white">
+        <CardHeader className="pb-4 relative bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
           <Button
             variant="ghost"
             size="sm"
-            className="absolute right-2 top-2 p-1 h-8 w-8"
+            className="absolute right-2 top-2 p-1 h-8 w-8 hover:bg-white/50"
             onClick={() => setShowResult(false)}
           >
             <X className="h-4 w-4" />
           </Button>
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
               <Trophy className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-blue-600">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             🎉 Parabéns!
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 p-6">
           <div>
             <p className="text-gray-600 mb-2">Você ganhou:</p>
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <p className="text-xl font-bold text-blue-600">{wonPrize}</p>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{wonPrize}</p>
             </div>
           </div>
           
           {wonCoupon && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-2">Código do cupom:</p>
-              <div className="bg-white p-3 rounded border-2 border-dashed border-gray-300">
+              <div className="bg-white p-3 rounded border-2 border-dashed border-gray-300 shadow-inner">
                 <p className="text-lg font-mono font-bold text-gray-800">{wonCoupon}</p>
               </div>
             </div>
           )}
 
           {prizeExpiryDate && wonPrize !== 'Tente Novamente' && (
-            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+            <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-lg border border-orange-200">
               <div className="flex items-center justify-center gap-2 text-orange-600">
                 <Calendar className="w-4 h-4" />
                 <p className="text-sm font-medium">
@@ -331,13 +331,13 @@ const Campaign = () => {
           
           <div className="space-y-4">
             {campaign?.thank_you_message && (
-              <p className="text-gray-600 text-sm">{campaign.thank_you_message}</p>
+              <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded-lg">{campaign.thank_you_message}</p>
             )}
             
             {getWhatsAppLink() && wonPrize !== 'Tente Novamente' && (
               <Button
                 onClick={() => window.open(getWhatsAppLink(), '_blank')}
-                className="w-full bg-green-500 hover:bg-green-600 text-white"
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
               >
                 🎁 Resgatar Prêmio
               </Button>
@@ -346,7 +346,7 @@ const Campaign = () => {
             <Button
               onClick={() => setShowResult(false)}
               variant="outline"
-              className="w-full"
+              className="w-full border-gray-200 hover:bg-gray-50"
             >
               Fechar
             </Button>
@@ -357,11 +357,11 @@ const Campaign = () => {
   );
 
   const renderWheel = () => (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
       <div className="container mx-auto max-w-4xl">
         {/* Campaign Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-blue-600 mb-2">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
             {campaign.name}
           </h1>
           <p className="text-gray-600">Gire a roda e ganhe prêmios incríveis!</p>
@@ -369,11 +369,14 @@ const Campaign = () => {
 
         {/* Campaign Information Cards */}
         {(campaign.description || campaign.rules || campaign.prize_description) && (
-          <div className="grid gap-6 mb-8">
+          <div className="space-y-4 mb-8">
             {campaign.description && (
-              <Card className="shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-lg text-blue-600">Sobre a Campanha</CardTitle>
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+                    <Gift className="w-5 h-5 text-blue-600" />
+                    Sobre a Campanha
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600 text-sm leading-relaxed">{campaign.description}</p>
@@ -382,9 +385,12 @@ const Campaign = () => {
             )}
             
             {campaign.rules && (
-              <Card className="shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-lg text-blue-600">Regras</CardTitle>
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-blue-600" />
+                    Regras
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{campaign.rules}</div>
@@ -393,9 +399,12 @@ const Campaign = () => {
             )}
             
             {campaign.prize_description && (
-              <Card className="shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-lg text-blue-600">Descrição dos Prêmios</CardTitle>
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                    Descrição dos Prêmios
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600 text-sm leading-relaxed">{campaign.prize_description}</p>
@@ -407,10 +416,10 @@ const Campaign = () => {
         
         {/* Wheel Section */}
         <div className="flex justify-center">
-          <Card className="shadow-lg p-6">
+          <Card className="shadow-xl p-6 border-0 bg-white/90 backdrop-blur-sm">
             <div className="flex flex-col items-center">
               {hasAlreadySpun && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
                   <p className="text-yellow-700 text-sm font-medium text-center">
                     Você já participou desta campanha!
                   </p>
@@ -426,7 +435,6 @@ const Campaign = () => {
                 onSpin={hasAlreadySpun ? () => {} : handlePrizeWon}
                 isSpinning={isSpinning}
                 wheelColor={campaign.wheel_color || '#3B82F6'}
-                disabled={hasAlreadySpun}
               />
             </div>
           </Card>
