@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import WheelComponent from 'react-wheel-of-prizes';
+import SpinWheel from '@/components/SpinWheel';
 import { supabase } from '@/integrations/supabase/client';
 
 interface CampaignData {
@@ -48,6 +48,7 @@ const Campaign = () => {
   const [currentParticipation, setCurrentParticipation] = useState<any>(null);
   const [wonPrize, setWonPrize] = useState('');
   const [wonCoupon, setWonCoupon] = useState('');
+  const [isSpinning, setIsSpinning] = useState(false);
 
   useEffect(() => {
     loadCampaign();
@@ -138,18 +139,18 @@ const Campaign = () => {
     }
   };
 
-  const handlePrizeWon = async (prizeName: string, couponCode?: string) => {
+  const handlePrizeWon = async (prize: any) => {
     if (!currentParticipation) return;
 
-    console.log('Prize won:', { prizeName, couponCode, participationId: currentParticipation.id });
+    console.log('Prize won:', { prizeName: prize.name, couponCode: prize.couponCode, participationId: currentParticipation.id });
 
     try {
       const { error } = await supabase
         .from('participations')
         .update({
           has_spun: true,
-          prize_won: prizeName,
-          coupon_code: couponCode || null
+          prize_won: prize.name,
+          coupon_code: prize.couponCode || null
         })
         .eq('id', currentParticipation.id);
 
@@ -161,13 +162,14 @@ const Campaign = () => {
       setCurrentParticipation({
         ...currentParticipation,
         has_spun: true,
-        prize_won: prizeName,
-        coupon_code: couponCode || null
+        prize_won: prize.name,
+        coupon_code: prize.couponCode || null
       });
 
       setShowResult(true);
-      setWonPrize(prizeName);
-      setWonCoupon(couponCode || '');
+      setWonPrize(prize.name);
+      setWonCoupon(prize.couponCode || '');
+      setIsSpinning(false);
     } catch (error) {
       console.error('Error updating participation:', error);
       toast({
@@ -266,13 +268,6 @@ const Campaign = () => {
     </Card>
   );
 
-  const wheelSegments = campaign.campaign_prizes.map(prize => prize.name);
-  const wheelColors = ['#F0F8FF', '#E6E6FA', '#D8BFD8', '#DDA0DD', '#EE82EE', '#DA70D6', '#FF00FF', '#BA55D3', '#9370DB', '#8A2BE2', '#7B68EE', '#6A5ACD', '#483D8B', '#000080', '#191970'];
-  const onFinished = (prize: string) => {
-    const wonPrizeData = campaign.campaign_prizes.find(p => p.name === prize);
-    handlePrizeWon(prize, wonPrizeData?.coupon_code);
-  };
-
   const renderWheel = () => (
     <div className="flex flex-col items-center">
       {campaign.show_prizes && (
@@ -287,19 +282,19 @@ const Campaign = () => {
           </CardContent>
         </Card>
       )}
-      <WheelComponent
-        segments={wheelSegments}
-        segColors={wheelColors}
-        onFinished={onFinished}
-        primaryColor={campaign.wheel_color || '#3B82F6'}
-        contrastColor={'white'}
-        buttonText={'Girar!'}
-        isOnlyOnce={true}
-        size={290}
-        upDuration={500}
-        downDuration={600}
-        fontFamily="Arial"
+      
+      <SpinWheel
+        prizes={campaign.campaign_prizes.map(prize => ({
+          id: prize.id,
+          name: prize.name,
+          percentage: prize.percentage,
+          couponCode: prize.coupon_code || ''
+        }))}
+        onSpin={handlePrizeWon}
+        isSpinning={isSpinning}
+        wheelColor={campaign.wheel_color || '#3B82F6'}
       />
+      
       {campaign.description && (
         <Card className="mt-4">
           <CardContent>
