@@ -1,16 +1,15 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import CampaignStep1 from '@/components/campaign/CampaignStep1';
+import CampaignStep2 from '@/components/campaign/CampaignStep2';
+import CampaignStep3 from '@/components/campaign/CampaignStep3';
 
 interface Prize {
   id: string;
@@ -29,7 +28,15 @@ interface CustomField {
 
 const CreateCampaign = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Step 1 - Configuração Básica
   const [campaignName, setCampaignName] = useState('');
+  const [maxUsesPerEmail, setMaxUsesPerEmail] = useState(1);
   const [prizes, setPrizes] = useState<Prize[]>([
     { id: '1', name: 'Desconto 10%', percentage: 30, couponCode: 'DESC10' },
     { id: '2', name: 'Desconto 20%', percentage: 20, couponCode: 'DESC20' },
@@ -42,60 +49,20 @@ const CreateCampaign = () => {
     { id: '3', name: 'WhatsApp', type: 'phone', required: true, placeholder: '(11) 99999-9999' }
   ]);
   const [collectDataBefore, setCollectDataBefore] = useState(true);
-  const [thankYouMessage, setThankYouMessage] = useState('Obrigado por participar da nossa promoção!');
+
+  // Step 2 - Descrições e Configurações
+  const [description, setDescription] = useState('');
+  const [rules, setRules] = useState('');
+  const [prizeDescription, setPrizeDescription] = useState('');
+  const [showPrizes, setShowPrizes] = useState(false);
   const [wheelColor, setWheelColor] = useState('#007BFF');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const [thankYouMessage, setThankYouMessage] = useState('Obrigado por participar da nossa promoção!');
 
-  const addPrize = () => {
-    const newPrize: Prize = {
-      id: Date.now().toString(),
-      name: '',
-      percentage: 0,
-      couponCode: ''
-    };
-    setPrizes([...prizes, newPrize]);
-  };
+  // Step 3 - WhatsApp
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [whatsappMessage, setWhatsappMessage] = useState('Olá! Ganhei um prêmio na sua promoção e gostaria de resgatar.');
 
-  const removePrize = (id: string) => {
-    setPrizes(prizes.filter(prize => prize.id !== id));
-  };
-
-  const updatePrize = (id: string, field: keyof Prize, value: string | number) => {
-    setPrizes(prizes.map(prize => 
-      prize.id === id ? { ...prize, [field]: value } : prize
-    ));
-  };
-
-  const addCustomField = () => {
-    const newField: CustomField = {
-      id: Date.now().toString(),
-      name: '',
-      type: 'text',
-      required: false,
-      placeholder: ''
-    };
-    setCustomFields([...customFields, newField]);
-  };
-
-  const removeCustomField = (id: string) => {
-    setCustomFields(customFields.filter(field => field.id !== id));
-  };
-
-  const updateCustomField = (id: string, field: keyof CustomField, value: string | boolean) => {
-    setCustomFields(customFields.map(f => 
-      f.id === id ? { ...f, [field]: value } : f
-    ));
-  };
-
-  const getTotalPercentage = () => {
-    return prizes.reduce((total, prize) => total + prize.percentage, 0);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setIsLoading(true);
 
     if (!user) {
@@ -108,38 +75,16 @@ const CreateCampaign = () => {
       return;
     }
 
-    // Validações
-    if (getTotalPercentage() !== 100) {
-      toast({
-        title: 'Erro na configuração',
-        description: 'A soma das porcentagens deve ser exatamente 100%',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    if (prizes.some(prize => !prize.name.trim())) {
-      toast({
-        title: 'Erro na configuração',
-        description: 'Todos os prêmios devem ter um nome',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    if (customFields.some(field => !field.name.trim())) {
-      toast({
-        title: 'Erro na configuração',
-        description: 'Todos os campos personalizados devem ter um nome',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
-      return;
-    }
-
     try {
+      // Formatar número do WhatsApp
+      const formatPhoneNumber = (phone: string) => {
+        const cleaned = phone.replace(/\D/g, '');
+        if (!cleaned.startsWith('55') && cleaned.length >= 10) {
+          return `55${cleaned}`;
+        }
+        return cleaned;
+      };
+
       // Criar campanha no Supabase
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
@@ -150,6 +95,13 @@ const CreateCampaign = () => {
           collect_data_before: collectDataBefore,
           thank_you_message: thankYouMessage,
           wheel_color: wheelColor,
+          description,
+          rules: rules || null,
+          prize_description: prizeDescription || null,
+          show_prizes: showPrizes,
+          max_uses_per_email: maxUsesPerEmail,
+          whatsapp_number: formatPhoneNumber(whatsappNumber),
+          whatsapp_message: whatsappMessage,
         })
         .select()
         .single();
@@ -203,6 +155,60 @@ const CreateCampaign = () => {
     }
   };
 
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <CampaignStep1
+            campaignName={campaignName}
+            setCampaignName={setCampaignName}
+            prizes={prizes}
+            setPrizes={setPrizes}
+            customFields={customFields}
+            setCustomFields={setCustomFields}
+            collectDataBefore={collectDataBefore}
+            setCollectDataBefore={setCollectDataBefore}
+            maxUsesPerEmail={maxUsesPerEmail}
+            setMaxUsesPerEmail={setMaxUsesPerEmail}
+            onNext={() => setCurrentStep(2)}
+          />
+        );
+      case 2:
+        return (
+          <CampaignStep2
+            description={description}
+            setDescription={setDescription}
+            rules={rules}
+            setRules={setRules}
+            prizeDescription={prizeDescription}
+            setPrizeDescription={setPrizeDescription}
+            showPrizes={showPrizes}
+            setShowPrizes={setShowPrizes}
+            wheelColor={wheelColor}
+            setWheelColor={setWheelColor}
+            thankYouMessage={thankYouMessage}
+            setThankYouMessage={setThankYouMessage}
+            onNext={() => setCurrentStep(3)}
+            onBack={() => setCurrentStep(1)}
+          />
+        );
+      case 3:
+        return (
+          <CampaignStep3
+            whatsappNumber={whatsappNumber}
+            setWhatsappNumber={setWhatsappNumber}
+            whatsappMessage={whatsappMessage}
+            setWhatsappMessage={setWhatsappMessage}
+            isLoading={isLoading}
+            onSubmit={handleSubmit}
+            onBack={() => setCurrentStep(2)}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -218,224 +224,23 @@ const CreateCampaign = () => {
 
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-2xl">Criar Nova Campanha</CardTitle>
+              <CardTitle className="text-2xl flex items-center justify-between">
+                Criar Nova Campanha
+                <div className="text-sm font-normal text-gray-500">
+                  Passo {currentStep} de 3
+                </div>
+              </CardTitle>
+              
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
+                <div 
+                  className="bg-brand-blue h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(currentStep / 3) * 100}%` }}
+                />
+              </div>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Nome da Campanha */}
-                <div className="space-y-2">
-                  <Label htmlFor="campaignName">Nome da Campanha</Label>
-                  <Input
-                    id="campaignName"
-                    placeholder="Ex: Promoção de Verão 2024"
-                    value={campaignName}
-                    onChange={(e) => setCampaignName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                {/* Campos Personalizados */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Campos de Coleta de Dados</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addCustomField}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Adicionar Campo
-                    </Button>
-                  </div>
-                  
-                  {customFields.map((field, index) => (
-                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
-                      <div>
-                        <Label className="text-sm text-gray-600">Nome do Campo</Label>
-                        <Input
-                          placeholder="Nome do campo"
-                          value={field.name}
-                          onChange={(e) => updateCustomField(field.id, 'name', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm text-gray-600">Tipo</Label>
-                        <Select value={field.type} onValueChange={(value) => updateCustomField(field.id, 'type', value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="text">Texto</SelectItem>
-                            <SelectItem value="email">Email</SelectItem>
-                            <SelectItem value="phone">Telefone</SelectItem>
-                            <SelectItem value="number">Número</SelectItem>
-                            <SelectItem value="date">Data</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-sm text-gray-600">Placeholder</Label>
-                        <Input
-                          placeholder={field.type === 'date' ? 'Ex: Data de nascimento' : 'Texto de ajuda'}
-                          value={field.placeholder}
-                          onChange={(e) => updateCustomField(field.id, 'placeholder', e.target.value)}
-                        />
-                      </div>
-                      <div className="flex flex-col justify-center">
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            checked={field.required}
-                            onCheckedChange={(checked) => updateCustomField(field.id, 'required', checked)}
-                          />
-                          <Label className="text-sm">Obrigatório</Label>
-                        </div>
-                      </div>
-                      <div className="flex items-end">
-                        {customFields.length > 1 && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => removeCustomField(field.id)}
-                            className="w-full"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Remover
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Prêmios */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Prêmios da Roda</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addPrize}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Adicionar Prêmio
-                    </Button>
-                  </div>
-                  
-                  {prizes.map((prize, index) => (
-                    <div key={prize.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
-                      <div>
-                        <Label className="text-sm text-gray-600">Nome do Prêmio</Label>
-                        <Input
-                          placeholder="Nome do prêmio"
-                          value={prize.name}
-                          onChange={(e) => updatePrize(prize.id, 'name', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm text-gray-600">% Chance</Label>
-                        <Input
-                          type="number"
-                          placeholder="% Chance"
-                          value={prize.percentage}
-                          onChange={(e) => updatePrize(prize.id, 'percentage', parseInt(e.target.value) || 0)}
-                          min="0"
-                          max="100"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm text-gray-600">Código do Cupom</Label>
-                        <Input
-                          placeholder="Ex: DESC10"
-                          value={prize.couponCode}
-                          onChange={(e) => updatePrize(prize.id, 'couponCode', e.target.value)}
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        {prizes.length > 1 && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => removePrize(prize.id)}
-                            className="w-full"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Remover
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <div className="text-sm text-gray-600">
-                    Total: {getTotalPercentage()}% 
-                    {getTotalPercentage() !== 100 && (
-                      <span className="text-red-500 ml-2">
-                        (Deve somar 100%)
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Configurações */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="collectDataBefore"
-                        checked={collectDataBefore}
-                        onCheckedChange={setCollectDataBefore}
-                      />
-                      <Label htmlFor="collectDataBefore">
-                        Coletar dados antes do giro
-                      </Label>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="wheelColor">Cor da Roda</Label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="color"
-                          id="wheelColor"
-                          value={wheelColor}
-                          onChange={(e) => setWheelColor(e.target.value)}
-                          className="w-12 h-10 rounded border"
-                        />
-                        <Input
-                          value={wheelColor}
-                          onChange={(e) => setWheelColor(e.target.value)}
-                          placeholder="#007BFF"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mensagem de Agradecimento */}
-                <div className="space-y-2">
-                  <Label htmlFor="thankYouMessage">Mensagem de Agradecimento</Label>
-                  <Textarea
-                    id="thankYouMessage"
-                    placeholder="Mensagem que aparecerá após o giro"
-                    value={thankYouMessage}
-                    onChange={(e) => setThankYouMessage(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                {/* Botões */}
-                <div className="flex items-center justify-end space-x-4">
-                  <Button 
-                    type="button" 
-                    variant="outline"
-                    onClick={() => navigate('/dashboard')}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    className="bg-brand-blue hover:bg-blue-600"
-                    disabled={isLoading || getTotalPercentage() !== 100}
-                  >
-                    {isLoading ? 'Criando...' : 'Criar Campanha'}
-                  </Button>
-                </div>
-              </form>
+              {renderStep()}
             </CardContent>
           </Card>
         </div>

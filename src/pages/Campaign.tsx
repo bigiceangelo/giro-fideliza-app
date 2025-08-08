@@ -1,28 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { Share2, RotateCcw, Play, Info, Gift } from 'lucide-react';
-import SpinWheel from '@/components/SpinWheel';
+import WheelComponent from 'react-wheel-of-prizes';
 import { supabase } from '@/integrations/supabase/client';
-
-interface Prize {
-  id: string;
-  name: string;
-  percentage: number;
-  couponCode: string;
-}
-
-interface CustomField {
-  id: string;
-  name: string;
-  type: 'text' | 'email' | 'phone' | 'number' | 'date';
-  required: boolean;
-  placeholder: string;
-}
 
 interface CampaignData {
   id: string;
@@ -30,639 +14,323 @@ interface CampaignData {
   description?: string;
   rules?: string;
   prize_description?: string;
+  collect_data_before?: boolean;
   thank_you_message?: string;
   wheel_color?: string;
-  config: {
-    prizes: Prize[];
-    collectDataBefore: boolean;
-    thankYouMessage: string;
-    wheelColor: string;
-    customFields?: CustomField[];
-  };
+  campaign_prizes: {
+    id: string;
+    name: string;
+    percentage: number;
+    coupon_code?: string;
+  }[];
+  campaign_custom_fields: {
+    id: string;
+    name: string;
+    type: string;
+    required: boolean;
+    placeholder?: string;
+  }[];
+  show_prizes?: boolean;
+  max_uses_per_email?: number;
+  whatsapp_number?: string;
+  whatsapp_message?: string;
 }
 
 const Campaign = () => {
   const { id } = useParams();
-  const [campaign, setCampaign] = useState<CampaignData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showCampaignInfo, setShowCampaignInfo] = useState(true);
-  const [participantData, setParticipantData] = useState<{[key: string]: string}>({});
-  const [hasSpun, setHasSpun] = useState(false);
-  const [wonPrize, setWonPrize] = useState<Prize | null>(null);
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [participationId, setParticipationId] = useState<string | null>(null);
-  const [dataCollected, setDataCollected] = useState(false);
-  const [formData, setFormData] = useState<{[key: string]: string}>({});
-  const [showForm, setShowForm] = useState(false);
-  const [canSpin, setCanSpin] = useState(false);
   const { toast } = useToast();
-
-  // Derived variables from campaign data
-  const customFields = campaign?.config.customFields || [];
-  const prizes = campaign?.config.prizes || [];
-  const winner = wonPrize ? { prize: wonPrize.name, couponCode: wonPrize.couponCode } : null;
+  const [campaign, setCampaign] = useState<CampaignData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showDataForm, setShowDataForm] = useState(false);
+  const [showWheel, setShowWheel] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [currentParticipation, setCurrentParticipation] = useState<any>(null);
+  const [wonPrize, setWonPrize] = useState('');
+  const [wonCoupon, setWonCoupon] = useState('');
 
   useEffect(() => {
-    console.log('=== CAMPAIGN LOAD START ===');
-    console.log('Campaign ID:', id);
-    console.log('Current user:', supabase.auth.getUser());
-    
-    const loadCampaign = async () => {
-      if (!id) {
-        console.log('No ID provided');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        // Log do estado de autenticação
-        const { data: { user } } = await supabase.auth.getUser();
-        console.log('Current authenticated user:', user ? user.id : 'anonymous');
-
-        // Buscar a campanha no Supabase
-        console.log('Fetching campaign with ID:', id);
-        const { data: campaignData, error: campaignError } = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('id', id)
-          .eq('status', 'active')
-          .single();
-
-        if (campaignError) {
-          console.error('Error loading campaign:', campaignError);
-          setCampaign(null);
-          setLoading(false);
-          return;
-        }
-
-        if (!campaignData) {
-          console.log('Campaign not found or not active');
-          setCampaign(null);
-          setLoading(false);
-          return;
-        }
-
-        console.log('Campaign found:', campaignData);
-
-        // Buscar os prêmios da campanha
-        const { data: prizesData, error: prizesError } = await supabase
-          .from('campaign_prizes')
-          .select('*')
-          .eq('campaign_id', id);
-
-        if (prizesError) {
-          console.error('Error loading prizes:', prizesError);
-        }
-
-        // Buscar os campos customizados da campanha
-        const { data: fieldsData, error: fieldsError } = await supabase
-          .from('campaign_custom_fields')
-          .select('*')
-          .eq('campaign_id', id);
-
-        if (fieldsError) {
-          console.error('Error loading custom fields:', fieldsError);
-        }
-
-        // Converter os dados para o formato esperado
-        const prizes: Prize[] = (prizesData || []).map(prize => ({
-          id: prize.id,
-          name: prize.name,
-          percentage: prize.percentage,
-          couponCode: prize.coupon_code || ''
-        }));
-
-        const customFields: CustomField[] = (fieldsData || []).map(field => ({
-          id: field.id,
-          name: field.name,
-          type: field.type as 'text' | 'email' | 'phone' | 'number' | 'date',
-          required: field.required || false,
-          placeholder: field.placeholder || ''
-        }));
-
-        const campaign: CampaignData = {
-          id: campaignData.id,
-          name: campaignData.name,
-          description: campaignData.description || '',
-          rules: campaignData.rules || '',
-          prize_description: campaignData.prize_description || '',
-          thank_you_message: campaignData.thank_you_message || 'Obrigado por participar!',
-          wheel_color: campaignData.wheel_color || '#3B82F6',
-          config: {
-            prizes,
-            collectDataBefore: campaignData.collect_data_before || false,
-            thankYouMessage: campaignData.thank_you_message || 'Obrigado por participar!',
-            wheelColor: campaignData.wheel_color || '#3B82F6',
-            customFields
-          }
-        };
-
-        console.log('Campaign loaded successfully:', campaign);
-        setCampaign(campaign);
-
-        // Initialize participant data
-        const initialData: {[key: string]: string} = {};
-        customFields.forEach(field => {
-          initialData[field.id] = '';
-        });
-        setParticipantData(initialData);
-
-        // Check if we need to show form first
-        if (campaignData.collect_data_before && customFields.length > 0) {
-          setShowForm(true);
-          setCanSpin(false);
-        } else {
-          setShowForm(false);
-          setCanSpin(true);
-        }
-
-        setLoading(false);
-        console.log('=== CAMPAIGN LOAD SUCCESS ===');
-
-      } catch (error) {
-        console.error('Unexpected error loading campaign:', error);
-        setCampaign(null);
-        setLoading(false);
-        console.log('=== CAMPAIGN LOAD ERROR ===');
-      }
-    };
-
     loadCampaign();
   }, [id]);
 
-  const createParticipation = async (prize?: Prize) => {
-    if (!campaign || !id) return null;
+  const loadCampaign = async () => {
+    if (!id) return;
 
-    const participantDataPayload: any = {};
-    
-    if (campaign.config.customFields && campaign.config.customFields.length > 0) {
-      campaign.config.customFields.forEach(field => {
-        const value = participantData[field.id] || '';
-        if (value) {
-          participantDataPayload[field.name.toLowerCase()] = value;
-          participantDataPayload[field.name] = value;
-        }
+    try {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select(`
+          *,
+          campaign_prizes(*),
+          campaign_custom_fields(*)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      setCampaign(data);
+      setIsLoading(false);
+      setShowDataForm(data?.collect_data_before === true);
+      setShowWheel(data?.collect_data_before !== true);
+    } catch (error: any) {
+      console.error('Error loading campaign:', error);
+      toast({
+        title: 'Erro ao carregar campanha',
+        description: error.message,
+        variant: 'destructive',
       });
     }
+  };
 
-    // CRITICAL FIX: Construir objeto de participação com estrutura correta
-    const participationData = {
-      campaign_id: id,
-      participant_data: participantDataPayload,
-      has_spun: !!prize,  // true se ganhou prêmio, false se ainda não girou
-      prize_won: prize?.name || null,
-      coupon_code: prize?.couponCode || null,
-      coupon_used: false
-    };
+  if (isLoading) {
+    return <div className="text-center">Carregando...</div>;
+  }
 
-    console.log('=== CREATING PARTICIPATION ===');
-    console.log('Prize object:', prize);
-    console.log('Participation data to save:', participationData);
-    console.log('Prize name:', participationData.prize_won);
-    console.log('Coupon code:', participationData.coupon_code);
-    console.log('Has spun:', participationData.has_spun);
+  if (!campaign) {
+    return <div className="text-center">Campanha não encontrada.</div>;
+  }
+
+  const createParticipation = async (userData: any) => {
+    if (!campaign) return null;
+
+    const email = userData.email || userData.Email;
+    
+    // Verificar limite de participações por email
+    if (campaign.max_uses_per_email && campaign.max_uses_per_email > 0) {
+      const { count } = await supabase
+        .from('participations')
+        .select('*', { count: 'exact', head: true })
+        .eq('campaign_id', campaign.id)
+        .contains('participant_data', { email });
+
+      if (count && count >= campaign.max_uses_per_email) {
+        toast({
+          title: 'Limite atingido',
+          description: `Você já atingiu o limite de ${campaign.max_uses_per_email} participação(ões) por email.`,
+          variant: 'destructive',
+        });
+        return null;
+      }
+    }
 
     try {
       const { data, error } = await supabase
         .from('participations')
-        .insert([participationData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating participation:', error);
-        return null;
-      }
-
-      console.log('=== PARTICIPATION SAVED SUCCESSFULLY ===');
-      console.log('Database response:', data);
-      console.log('Confirmed prize_won in DB:', data.prize_won);
-      console.log('Confirmed coupon_code in DB:', data.coupon_code);
-      console.log('Confirmed has_spun in DB:', data.has_spun);
-
-      setParticipationId(data.id);
-      return data.id;
-    } catch (error) {
-      console.error('Error creating participation:', error);
-      return null;
-    }
-  };
-
-  const handlePrizeWon = async (prize: Prize) => {
-    console.log('=== HANDLE PRIZE WON - START ===');
-    console.log('Prize received:', prize);
-    console.log('Prize name:', prize.name);
-    console.log('Prize coupon code:', prize.couponCode);
-    console.log('Current participation ID:', participationId);
-    
-    setWonPrize(prize);
-    setHasSpun(true);
-    setIsSpinning(false);
-    
-    if (campaign?.config.collectDataBefore && participationId) {
-      console.log('=== UPDATING EXISTING PARTICIPATION ===');
-      
-      const updateData = {
-        prize_won: prize.name,
-        coupon_code: prize.couponCode,
-        has_spun: true,
-        coupon_used: false
-      };
-      
-      console.log('Update data:', updateData);
-      
-      try {
-        const { data, error } = await supabase
-          .from('participations')
-          .update(updateData)
-          .eq('id', participationId)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error updating participation:', error);
-        } else {
-          console.log('=== PARTICIPATION UPDATED SUCCESSFULLY ===');
-          console.log('Updated data in DB:', data);
-          console.log('Final prize_won:', data.prize_won);
-          console.log('Final coupon_code:', data.coupon_code);
-          console.log('Final has_spun:', data.has_spun);
-        }
-      } catch (error) {
-        console.error('Error updating participation:', error);
-      }
-    } else {
-      console.log('=== CREATING NEW PARTICIPATION WITH PRIZE ===');
-      const newParticipationId = await createParticipation(prize);
-      if (newParticipationId) {
-        console.log('New participation created with ID:', newParticipationId);
-      }
-    }
-
-    toast({
-      title: 'Parabéns! 🎉',
-      description: `Você ganhou: ${prize.name}`,
-    });
-    
-    console.log('=== HANDLE PRIZE WON - END ===');
-  };
-
-  const handleSpin = (prize: Prize) => {
-    console.log('=== HANDLE SPIN CALLED ===');
-    console.log('Prize passed to handleSpin:', prize);
-    handlePrizeWon(prize);
-  };
-
-  const validateForm = () => {
-    if (!campaign?.config.customFields) return true;
-    
-    for (const field of campaign.config.customFields) {
-      if (field.required && !participantData[field.id]?.trim()) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    console.log('=== FORM SUBMISSION START ===');
-    console.log('Campaign:', campaign?.id);
-    console.log('Form data:', formData);
-    
-    if (!campaign) {
-      console.error('No campaign available');
-      return;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    console.log('User at submission time:', user ? user.id : 'anonymous');
-
-    const missingFields = customFields.filter(field => 
-      field.required && !formData[field.name]?.trim()
-    );
-
-    if (missingFields.length > 0) {
-      console.log('Missing required fields:', missingFields.map(f => f.name));
-      toast({
-        title: 'Campos obrigatórios não preenchidos',
-        description: `Por favor, preencha: ${missingFields.map(f => f.name).join(', ')}`,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const phoneField = customFields.find(field => field.type === 'phone');
-    if (phoneField && formData[phoneField.name]) {
-      const phoneValue = formData[phoneField.name];
-      const phoneRegex = /^\(\d{2}\)\s\d{4,5}-\d{4}$/;
-      
-      if (!phoneRegex.test(phoneValue)) {
-        console.log('Invalid phone format:', phoneValue);
-        toast({
-          title: 'Telefone inválido',
-          description: 'Use o formato (11) 99999-9999',
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-
-    const emailField = customFields.find(field => field.type === 'email');
-    if (emailField && formData[emailField.name]) {
-      const emailValue = formData[emailField.name];
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      
-      if (!emailRegex.test(emailValue)) {
-        console.log('Invalid email format:', emailValue);
-        toast({
-          title: 'Email inválido',
-          description: 'Por favor, insira um email válido',
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-
-    try {
-      const participantDataForDb: any = {};
-      
-      customFields.forEach(field => {
-        const value = formData[field.name];
-        if (value) {
-          const key = field.name.toLowerCase().replace(/\s+/g, '_');
-          participantDataForDb[key] = value;
-          participantDataForDb[field.name] = value;
-        }
-      });
-
-      console.log('Data to be saved:', participantDataForDb);
-      console.log('Campaign ID for insertion:', campaign.id);
-
-      const { data: campaignCheck, error: checkError } = await supabase
-        .from('campaigns')
-        .select('id, status')
-        .eq('id', campaign.id)
-        .eq('status', 'active')
-        .single();
-
-      if (checkError) {
-        console.error('Error checking campaign status:', checkError);
-        throw new Error('Erro ao verificar status da campanha');
-      }
-
-      if (!campaignCheck) {
-        console.error('Campaign not active or not found');
-        throw new Error('Campanha não está ativa');
-      }
-
-      console.log('Campaign status verified as active:', campaignCheck);
-
-      console.log('Attempting to insert participation...');
-      const { data: participation, error } = await supabase
-        .from('participations')
         .insert({
           campaign_id: campaign.id,
-          participant_data: participantDataForDb,
+          participant_data: userData,
           has_spun: false
         })
         .select()
         .single();
 
-      if (error) {
-        console.error('Supabase insertion error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
-      }
-
-      console.log('Participation saved successfully:', participation);
-      
-      setParticipationId(participation.id);
-      setShowForm(false);
-      setCanSpin(true);
-
-      const updatedParticipantData: {[key: string]: string} = {};
-      customFields.forEach(field => {
-        updatedParticipantData[field.id] = formData[field.name] || '';
-      });
-      setParticipantData(updatedParticipantData);
-
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating participation:', error);
       toast({
-        title: 'Dados salvos com sucesso!',
-        description: 'Agora você pode girar a roda',
+        title: 'Erro ao registrar participação',
+        description: 'Tente novamente em alguns instantes',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const handlePrizeWon = async (prizeName: string, couponCode?: string) => {
+    if (!currentParticipation) return;
+
+    console.log('Prize won:', { prizeName, couponCode, participationId: currentParticipation.id });
+
+    try {
+      const { error } = await supabase
+        .from('participations')
+        .update({
+          has_spun: true,
+          prize_won: prizeName,
+          coupon_code: couponCode || null
+        })
+        .eq('id', currentParticipation.id);
+
+      if (error) throw error;
+
+      console.log('Participation updated successfully');
+      
+      // Atualizar o estado local
+      setCurrentParticipation({
+        ...currentParticipation,
+        has_spun: true,
+        prize_won: prizeName,
+        coupon_code: couponCode || null
       });
 
-      console.log('=== FORM SUBMISSION SUCCESS ===');
-    } catch (error: any) {
-      console.error('=== FORM SUBMISSION ERROR ===');
-      console.error('Error type:', typeof error);
-      console.error('Error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
+      setShowResult(true);
+      setWonPrize(prizeName);
+      setWonCoupon(couponCode || '');
+    } catch (error) {
+      console.error('Error updating participation:', error);
       toast({
-        title: 'Erro ao salvar dados',
-        description: error.message || 'Ocorreu um erro inesperado',
+        title: 'Erro ao salvar resultado',
+        description: 'O resultado foi registrado, mas houve um problema ao salvar',
         variant: 'destructive',
       });
     }
   };
 
-  const formatPhoneInput = (value: string, fieldName: string) => {
-    const digits = value.replace(/\D/g, '');
-    
-    let formatted = digits;
-    if (digits.length >= 2) {
-      formatted = `(${digits.slice(0, 2)})`;
-      if (digits.length > 2) {
-        formatted += ` ${digits.slice(2, 7)}`;
-        if (digits.length > 7) {
-          formatted += `-${digits.slice(7, 11)}`;
-        }
-      }
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    const data = Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement));
+    setFormData(data);
+
+    const participation = await createParticipation(data);
+
+    if (participation) {
+      setCurrentParticipation(participation);
+      setShowDataForm(false);
+      setShowWheel(true);
     }
-    
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: formatted
-    }));
+
+    setIsLoading(false);
   };
 
-  const handleInputChange = (fieldName: string, value: string, fieldType: string) => {
-    if (fieldType === 'phone') {
-      formatPhoneInput(value, fieldName);
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [fieldName]: value
-      }));
-    }
-  };
-
-  const resetWheel = () => {
-    setHasSpun(false);
-    setWonPrize(null);
-    setParticipationId(null);
-    setDataCollected(false);
-    setShowCampaignInfo(true);
-    
-    if (campaign?.config.customFields) {
-      const initialData: {[key: string]: string} = {};
-      campaign.config.customFields.forEach(field => {
-        initialData[field.id] = '';
-      });
-      setParticipantData(initialData);
-    }
-  };
-
-  const shareResult = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: 'FidelizaGiro - Eu ganhei!',
-        text: `Acabei de ganhar ${wonPrize?.name} na promoção ${campaign?.name}!`,
-        url: window.location.href
-      });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      toast({
-        title: 'Link copiado!',
-        description: 'O link da campanha foi copiado para a área de transferência',
-      });
-    }
-  };
-
-  const startParticipation = () => {
-    setShowCampaignInfo(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-brand-blue"></div>
-          <p className="mt-4 text-gray-600">Carregando campanha...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!campaign) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Campanha não encontrada</h1>
-          <p className="text-gray-600 mb-6">
-            A campanha que você está procurando não existe ou não está mais disponível.
-          </p>
-          <Button onClick={() => window.location.href = '/'}>
-            Voltar ao Início
+  const renderDataForm = () => (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>Participe da nossa campanha!</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleFormSubmit} className="space-y-4">
+          {campaign.campaign_custom_fields.map(field => (
+            <div key={field.id} className="space-y-2">
+              <Label htmlFor={field.name}>{field.name} {field.required && '*'}</Label>
+              <Input
+                type={field.type}
+                id={field.name}
+                name={field.name}
+                placeholder={field.placeholder}
+                required={field.required}
+              />
+            </div>
+          ))}
+          <Button disabled={isLoading} className="w-full bg-brand-blue hover:bg-blue-600">
+            {isLoading ? 'Enviando...' : 'Participar'}
           </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+
+  const getWhatsAppLink = () => {
+    if (!campaign?.whatsapp_number || !campaign?.whatsapp_message) {
+      return null;
+    }
+    
+    const encodedMessage = encodeURIComponent(campaign.whatsapp_message);
+    return `https://wa.me/${campaign.whatsapp_number}?text=${encodedMessage}`;
+  };
+
+  const renderResult = () => (
+    <Card className="w-full max-w-md mx-auto text-center">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-green-600">
+          🎉 Parabéns!
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-lg">Você ganhou:</p>
+        <p className="text-2xl font-bold text-brand-blue">{wonPrize}</p>
+        
+        {wonCoupon && (
+          <div className="bg-gray-100 p-4 rounded-lg">
+            <p className="text-sm text-gray-600">Código do cupom:</p>
+            <p className="text-xl font-mono font-bold">{wonCoupon}</p>
+          </div>
+        )}
+        
+        <div className="pt-4">
+          <p className="text-gray-600 mb-4">{campaign?.thank_you_message}</p>
+          
+          {getWhatsAppLink() && wonPrize !== 'Tente Novamente' && (
+            <Button
+              onClick={() => window.open(getWhatsAppLink(), '_blank')}
+              className="w-full bg-green-500 hover:bg-green-600 text-white"
+            >
+              🎁 Resgatar Prêmio
+            </Button>
+          )}
         </div>
-      </div>
-    );
-  }
+      </CardContent>
+    </Card>
+  );
+
+  const wheelSegments = campaign.campaign_prizes.map(prize => prize.name);
+  const wheelColors = ['#F0F8FF', '#E6E6FA', '#D8BFD8', '#DDA0DD', '#EE82EE', '#DA70D6', '#FF00FF', '#BA55D3', '#9370DB', '#8A2BE2', '#7B68EE', '#6A5ACD', '#483D8B', '#000080', '#191970'];
+  const onFinished = (prize: string) => {
+    const wonPrizeData = campaign.campaign_prizes.find(p => p.name === prize);
+    handlePrizeWon(prize, wonPrizeData?.coupon_code);
+  };
+
+  const renderWheel = () => (
+    <div className="flex flex-col items-center">
+      {campaign.show_prizes && (
+        <Card className="mb-4">
+          <CardContent>
+            <h3 className="font-semibold mb-2">Prêmios:</h3>
+            <ul className="list-disc pl-5">
+              {campaign.campaign_prizes.map((prize, index) => (
+                <li key={index}>{prize.name}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+      <WheelComponent
+        segments={wheelSegments}
+        segColors={wheelColors}
+        onFinished={onFinished}
+        primaryColor={campaign.wheel_color || '#3B82F6'}
+        contrastColor={'white'}
+        buttonText={'Girar!'}
+        isOnlyOnce={true}
+        size={290}
+        upDuration={500}
+        downDuration={600}
+        fontFamily="Arial"
+      />
+      {campaign.description && (
+        <Card className="mt-4">
+          <CardContent>
+            <h3 className="font-semibold mb-2">Sobre a Campanha:</h3>
+            <p>{campaign.description}</p>
+            {campaign.rules && (
+              <>
+                <h3 className="font-semibold mt-4 mb-2">Regras:</h3>
+                <p>{campaign.rules}</p>
+              </>
+            )}
+            {campaign.prize_description && (
+              <>
+                <h3 className="font-semibold mt-4 mb-2">Descrição dos Prêmios:</h3>
+                <p>{campaign.prize_description}</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <Card className="mb-8 shadow-lg">
-            <CardContent className="p-8 text-center">
-              <h1 className="text-3xl font-bold text-gray-800 mb-4">{campaign.name}</h1>
-              {campaign.description && (
-                <p className="text-gray-600 mb-6">{campaign.description}</p>
-              )}
-              {campaign.rules && (
-                <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                  <h3 className="font-semibold mb-2">Regras:</h3>
-                  <p className="text-sm text-gray-700 whitespace-pre-line">{campaign.rules}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Form */}
-          {showForm && (
-            <Card className="mb-8 shadow-lg">
-              <CardHeader>
-                <CardTitle>Preencha seus dados para participar</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {customFields.map((field) => (
-                    <div key={field.id}>
-                      <Label htmlFor={field.name}>
-                        {field.name}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </Label>
-                      <Input
-                        id={field.name}
-                        type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
-                        placeholder={field.placeholder}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => handleInputChange(field.name, e.target.value, field.type)}
-                        required={field.required}
-                        maxLength={field.type === 'phone' ? 15 : undefined}
-                      />
-                    </div>
-                  ))}
-                  <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-600">
-                    Participar da Promoção
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Wheel */}
-          {!showForm && (
-            <div className="text-center">
-              <div className="mb-8">
-                <SpinWheel
-                  prizes={prizes}
-                  onSpin={handleSpin}
-                  isSpinning={isSpinning}
-                  wheelColor={campaign.wheel_color || '#3B82F6'}
-                />
-              </div>
-              
-              {winner && (
-                <Card className="shadow-lg">
-                  <CardContent className="p-8 text-center">
-                    <h2 className="text-2xl font-bold text-green-600 mb-4">
-                      🎉 Parabéns!
-                    </h2>
-                    <p className="text-lg mb-4">
-                      Você ganhou: <strong>{winner.prize}</strong>
-                    </p>
-                    {winner.couponCode && (
-                      <div className="bg-yellow-50 p-4 rounded-lg mb-4">
-                        <p className="text-sm text-gray-600 mb-2">Seu código de cupom:</p>
-                        <p className="text-xl font-mono font-bold text-yellow-700">
-                          {winner.couponCode}
-                        </p>
-                      </div>
-                    )}
-                    {campaign.prize_description && (
-                      <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                        <p className="text-sm text-gray-700">{campaign.prize_description}</p>
-                      </div>
-                    )}
-                    {campaign.thank_you_message && (
-                      <p className="text-gray-600">{campaign.thank_you_message}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-        </div>
+    <div className="min-h-screen bg-gray-50 py-6">
+      <div className="container mx-auto px-4">
+        <h1 className="text-3xl font-bold text-center mb-8">{campaign.name}</h1>
+        
+        {showDataForm && renderDataForm()}
+        {showWheel && renderWheel()}
+        {showResult && renderResult()}
       </div>
     </div>
   );
