@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instanciate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "13.0.4"
   }
   public: {
     Tables: {
@@ -93,13 +93,18 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          max_uses_per_email: number | null
           name: string
           prize_description: string | null
+          prize_expiry_days: number | null
           rules: string | null
+          show_prizes: boolean | null
           status: Database["public"]["Enums"]["campaign_status"] | null
           thank_you_message: string | null
           updated_at: string | null
           user_id: string
+          whatsapp_message: string | null
+          whatsapp_number: string | null
           wheel_color: string | null
         }
         Insert: {
@@ -107,13 +112,18 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          max_uses_per_email?: number | null
           name: string
           prize_description?: string | null
+          prize_expiry_days?: number | null
           rules?: string | null
+          show_prizes?: boolean | null
           status?: Database["public"]["Enums"]["campaign_status"] | null
           thank_you_message?: string | null
           updated_at?: string | null
           user_id: string
+          whatsapp_message?: string | null
+          whatsapp_number?: string | null
           wheel_color?: string | null
         }
         Update: {
@@ -121,13 +131,18 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          max_uses_per_email?: number | null
           name?: string
           prize_description?: string | null
+          prize_expiry_days?: number | null
           rules?: string | null
+          show_prizes?: boolean | null
           status?: Database["public"]["Enums"]["campaign_status"] | null
           thank_you_message?: string | null
           updated_at?: string | null
           user_id?: string
+          whatsapp_message?: string | null
+          whatsapp_number?: string | null
           wheel_color?: string | null
         }
         Relationships: []

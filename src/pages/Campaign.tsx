@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import SpinWheel from '@/components/SpinWheel';
 import { supabase } from '@/integrations/supabase/client';
-import { Gift, Star, Trophy, Sparkles } from 'lucide-react';
+import { Gift, Trophy, X, Calendar } from 'lucide-react';
+import { format, addDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface CampaignData {
   id: string;
@@ -35,6 +38,7 @@ interface CampaignData {
   max_uses_per_email?: number;
   whatsapp_number?: string;
   whatsapp_message?: string;
+  prize_expiry_days?: number;
 }
 
 const Campaign = () => {
@@ -50,6 +54,8 @@ const Campaign = () => {
   const [wonPrize, setWonPrize] = useState('');
   const [wonCoupon, setWonCoupon] = useState('');
   const [isSpinning, setIsSpinning] = useState(false);
+  const [hasAlreadySpun, setHasAlreadySpun] = useState(false);
+  const [prizeExpiryDate, setPrizeExpiryDate] = useState<Date | null>(null);
 
   useEffect(() => {
     loadCampaign();
@@ -87,9 +93,9 @@ const Campaign = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-brand-blue/10 via-white to-brand-lime/10 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-lg font-semibold text-gray-600">Carregando...</p>
         </div>
       </div>
@@ -98,7 +104,7 @@ const Campaign = () => {
 
   if (!campaign) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-brand-blue/10 via-white to-brand-lime/10 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md mx-auto text-center shadow-xl">
           <CardContent className="p-8">
             <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -128,6 +134,7 @@ const Campaign = () => {
           description: `Você já atingiu o limite de ${campaign.max_uses_per_email} participação(ões) por email.`,
           variant: 'destructive',
         });
+        setHasAlreadySpun(true);
         return null;
       }
     }
@@ -157,9 +164,15 @@ const Campaign = () => {
   };
 
   const handlePrizeWon = async (prize: any) => {
-    if (!currentParticipation) return;
+    if (!currentParticipation || hasAlreadySpun) return;
 
     console.log('Prize won:', { prizeName: prize.name, couponCode: prize.couponCode, participationId: currentParticipation.id });
+    setIsSpinning(false);
+
+    // Calcular data de expiração do prêmio
+    const expiryDays = campaign?.prize_expiry_days || 30;
+    const expiryDate = addDays(new Date(), expiryDays);
+    setPrizeExpiryDate(expiryDate);
 
     try {
       const { error } = await supabase
@@ -183,10 +196,10 @@ const Campaign = () => {
         coupon_code: prize.couponCode || null
       });
 
-      setShowResult(true);
       setWonPrize(prize.name);
       setWonCoupon(prize.couponCode || '');
-      setIsSpinning(false);
+      setHasAlreadySpun(true);
+      setShowResult(true);
     } catch (error) {
       console.error('Error updating participation:', error);
       toast({
@@ -216,23 +229,23 @@ const Campaign = () => {
   };
 
   const renderDataForm = () => (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-brand-blue/10 via-white to-brand-lime/10 p-4">
-      <div className="w-full max-w-md">
-        {/* Header with sparkles */}
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="container mx-auto max-w-md">
+        {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-brand-blue to-brand-lime rounded-full mb-4">
-            <Sparkles className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500 rounded-full mb-4">
+            <Gift className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">Participe da Nossa Campanha!</h2>
-          <p className="text-gray-600">Preencha seus dados para concorrer aos prêmios incríveis</p>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Participe da Nossa Campanha!</h2>
+          <p className="text-gray-600">Preencha seus dados para concorrer</p>
         </div>
 
-        <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-8">
-            <form onSubmit={handleFormSubmit} className="space-y-6">
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <form onSubmit={handleFormSubmit} className="space-y-4">
               {campaign.campaign_custom_fields.map(field => (
                 <div key={field.id} className="space-y-2">
-                  <Label htmlFor={field.name} className="text-sm font-semibold text-gray-700">
+                  <Label htmlFor={field.name} className="text-sm font-medium text-gray-700">
                     {field.name} {field.required && <span className="text-red-500">*</span>}
                   </Label>
                   <Input
@@ -241,25 +254,15 @@ const Campaign = () => {
                     name={field.name}
                     placeholder={field.placeholder}
                     required={field.required}
-                    className="h-12 border-2 border-gray-200 focus:border-brand-blue transition-colors"
+                    className="h-10"
                   />
                 </div>
               ))}
               <Button 
                 disabled={isLoading} 
-                className="w-full h-12 bg-gradient-to-r from-brand-blue to-brand-lime hover:from-blue-600 hover:to-green-500 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                className="w-full h-12 bg-blue-500 hover:bg-blue-600 text-white font-medium"
               >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-                    Enviando...
-                  </div>
-                ) : (
-                  <>
-                    <Gift className="w-5 h-5 mr-2" />
-                    Participar Agora
-                  </>
-                )}
+                {isLoading ? 'Enviando...' : 'Participar Agora'}
               </Button>
             </form>
           </CardContent>
@@ -277,49 +280,76 @@ const Campaign = () => {
     return `https://wa.me/${campaign.whatsapp_number}?text=${encodedMessage}`;
   };
 
-  const renderResult = () => (
-    <div className="min-h-screen bg-gradient-to-br from-brand-blue/10 via-white to-brand-lime/10 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md text-center shadow-2xl border-0 bg-white/90 backdrop-blur-sm animate-bounce-in">
-        <CardHeader className="pb-4">
+  const renderResultPopup = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md text-center shadow-2xl animate-scale-in">
+        <CardHeader className="pb-4 relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-2 top-2 p-1 h-8 w-8"
+            onClick={() => setShowResult(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
           <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 bg-gradient-to-br from-brand-gold to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
-              <Trophy className="w-10 h-10 text-white" />
+            <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center">
+              <Trophy className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold text-transparent bg-gradient-to-r from-brand-blue to-brand-lime bg-clip-text">
+          <CardTitle className="text-2xl font-bold text-blue-600">
             🎉 Parabéns!
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <p className="text-lg text-gray-600 mb-2">Você ganhou:</p>
-            <div className="bg-gradient-to-br from-brand-blue/10 to-brand-lime/10 p-6 rounded-2xl border-2 border-dashed border-brand-blue/30">
-              <p className="text-2xl font-bold text-brand-blue">{wonPrize}</p>
+            <p className="text-gray-600 mb-2">Você ganhou:</p>
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-xl font-bold text-blue-600">{wonPrize}</p>
             </div>
           </div>
           
           {wonCoupon && (
-            <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+            <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-2">Código do cupom:</p>
-              <div className="bg-white p-3 rounded-lg border-2 border-dashed border-gray-300">
-                <p className="text-xl font-mono font-bold text-gray-800">{wonCoupon}</p>
+              <div className="bg-white p-3 rounded border-2 border-dashed border-gray-300">
+                <p className="text-lg font-mono font-bold text-gray-800">{wonCoupon}</p>
+              </div>
+            </div>
+          )}
+
+          {prizeExpiryDate && wonPrize !== 'Tente Novamente' && (
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+              <div className="flex items-center justify-center gap-2 text-orange-600">
+                <Calendar className="w-4 h-4" />
+                <p className="text-sm font-medium">
+                  Válido até: {format(prizeExpiryDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                </p>
               </div>
             </div>
           )}
           
-          <div className="pt-4 space-y-4">
+          <div className="space-y-4">
             {campaign?.thank_you_message && (
-              <p className="text-gray-600 leading-relaxed">{campaign.thank_you_message}</p>
+              <p className="text-gray-600 text-sm">{campaign.thank_you_message}</p>
             )}
             
             {getWhatsAppLink() && wonPrize !== 'Tente Novamente' && (
               <Button
                 onClick={() => window.open(getWhatsAppLink(), '_blank')}
-                className="w-full h-12 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                className="w-full bg-green-500 hover:bg-green-600 text-white"
               >
                 🎁 Resgatar Prêmio
               </Button>
             )}
+
+            <Button
+              onClick={() => setShowResult(false)}
+              variant="outline"
+              className="w-full"
+            >
+              Fechar
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -327,102 +357,83 @@ const Campaign = () => {
   );
 
   const renderWheel = () => (
-    <div className="min-h-screen bg-gradient-to-br from-brand-blue/10 via-white to-brand-lime/10 p-4">
+    <div className="min-h-screen bg-gray-50 p-4">
       <div className="container mx-auto max-w-4xl">
         {/* Campaign Title */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-gradient-to-r from-brand-blue to-brand-lime bg-clip-text mb-4">
+          <h1 className="text-3xl md:text-4xl font-bold text-blue-600 mb-2">
             {campaign.name}
           </h1>
-          <div className="flex items-center justify-center gap-2 text-brand-blue">
-            <Star className="w-5 h-5" />
-            <span className="text-lg font-semibold">Gire a roda e ganhe prêmios incríveis!</span>
-            <Star className="w-5 h-5" />
-          </div>
+          <p className="text-gray-600">Gire a roda e ganhe prêmios incríveis!</p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8 items-start">
-          {/* Left side - Prizes (if enabled) */}
-          {campaign.show_prizes && (
-            <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl font-bold text-gray-800">
-                  <Gift className="w-6 h-6 text-brand-blue" />
-                  Prêmios Disponíveis
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {campaign.campaign_prizes.map((prize, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
-                      <div className="w-3 h-3 bg-gradient-to-r from-brand-blue to-brand-lime rounded-full"></div>
-                      <span className="font-medium text-gray-700">{prize.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Right side - Wheel */}
-          <div className="flex flex-col items-center">
-            <div className="relative">
-              <div className="absolute -inset-4 bg-gradient-to-r from-brand-blue/20 to-brand-lime/20 rounded-full blur-xl"></div>
-              <div className="relative bg-white p-6 rounded-full shadow-2xl">
-                <SpinWheel
-                  prizes={campaign.campaign_prizes.map(prize => ({
-                    id: prize.id,
-                    name: prize.name,
-                    percentage: prize.percentage,
-                    couponCode: prize.coupon_code || ''
-                  }))}
-                  onSpin={handlePrizeWon}
-                  isSpinning={isSpinning}
-                  wheelColor={campaign.wheel_color || '#3B82F6'}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Campaign Information */}
+        {/* Campaign Information Cards */}
         {(campaign.description || campaign.rules || campaign.prize_description) && (
-          <div className="mt-12 grid md:grid-cols-3 gap-6">
+          <div className="grid gap-6 mb-8">
             {campaign.description && (
-              <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+              <Card className="shadow-md">
                 <CardHeader>
-                  <CardTitle className="text-lg font-bold text-brand-blue">Sobre a Campanha</CardTitle>
+                  <CardTitle className="text-lg text-blue-600">Sobre a Campanha</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600 leading-relaxed">{campaign.description}</p>
+                  <p className="text-gray-600 text-sm leading-relaxed">{campaign.description}</p>
                 </CardContent>
               </Card>
             )}
             
             {campaign.rules && (
-              <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+              <Card className="shadow-md">
                 <CardHeader>
-                  <CardTitle className="text-lg font-bold text-brand-blue">Regras</CardTitle>
+                  <CardTitle className="text-lg text-blue-600">Regras</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600 leading-relaxed">{campaign.rules}</p>
+                  <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{campaign.rules}</div>
                 </CardContent>
               </Card>
             )}
             
             {campaign.prize_description && (
-              <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+              <Card className="shadow-md">
                 <CardHeader>
-                  <CardTitle className="text-lg font-bold text-brand-blue">Descrição dos Prêmios</CardTitle>
+                  <CardTitle className="text-lg text-blue-600">Descrição dos Prêmios</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600 leading-relaxed">{campaign.prize_description}</p>
+                  <p className="text-gray-600 text-sm leading-relaxed">{campaign.prize_description}</p>
                 </CardContent>
               </Card>
             )}
           </div>
         )}
+        
+        {/* Wheel Section */}
+        <div className="flex justify-center">
+          <Card className="shadow-lg p-6">
+            <div className="flex flex-col items-center">
+              {hasAlreadySpun && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-700 text-sm font-medium text-center">
+                    Você já participou desta campanha!
+                  </p>
+                </div>
+              )}
+              <SpinWheel
+                prizes={campaign.campaign_prizes.map(prize => ({
+                  id: prize.id,
+                  name: prize.name,
+                  percentage: prize.percentage,
+                  couponCode: prize.coupon_code || ''
+                }))}
+                onSpin={hasAlreadySpun ? () => {} : handlePrizeWon}
+                isSpinning={isSpinning}
+                wheelColor={campaign.wheel_color || '#3B82F6'}
+                disabled={hasAlreadySpun}
+              />
+            </div>
+          </Card>
+        </div>
       </div>
+      
+      {showResult && renderResultPopup()}
     </div>
   );
 
@@ -430,7 +441,6 @@ const Campaign = () => {
     <>
       {showDataForm && renderDataForm()}
       {showWheel && renderWheel()}
-      {showResult && renderResult()}
     </>
   );
 };

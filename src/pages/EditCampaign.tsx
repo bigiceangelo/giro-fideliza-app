@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -37,6 +36,7 @@ const EditCampaign = () => {
   const [collectDataBefore, setCollectDataBefore] = useState(true);
   const [thankYouMessage, setThankYouMessage] = useState('');
   const [wheelColor, setWheelColor] = useState('#3B82F6');
+  const [prizeExpiryDays, setPrizeExpiryDays] = useState(30);
   const [isLoading, setIsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   
@@ -76,6 +76,7 @@ const EditCampaign = () => {
       setCollectDataBefore(campaign.collect_data_before ?? true);
       setThankYouMessage(campaign.thank_you_message || '');
       setWheelColor(campaign.wheel_color || '#3B82F6');
+      setPrizeExpiryDays(campaign.prize_expiry_days || 30);
 
       // Carregar prêmios
       const { data: prizesData, error: prizesError } = await supabase
@@ -221,6 +222,7 @@ const EditCampaign = () => {
           collect_data_before: collectDataBefore,
           thank_you_message: thankYouMessage,
           wheel_color: wheelColor,
+          prize_expiry_days: prizeExpiryDays,
         })
         .eq('id', id);
 
@@ -471,6 +473,23 @@ const EditCampaign = () => {
                       <Label htmlFor="collectDataBefore">
                         Coletar dados antes do giro
                       </Label>
+                    </div>
+
+                    {/* Prazo Limite dos Prêmios */}
+                    <div className="space-y-2">
+                      <Label htmlFor="prizeExpiryDays">Prazo Limite dos Prêmios (dias)</Label>
+                      <Input
+                        type="number"
+                        id="prizeExpiryDays"
+                        value={prizeExpiryDays}
+                        onChange={(e) => setPrizeExpiryDays(parseInt(e.target.value) || 30)}
+                        min="1"
+                        max="365"
+                        placeholder="30"
+                      />
+                      <p className="text-sm text-gray-500">
+                        Dias para os participantes resgatarem seus prêmios
+                      </p>
                     </div>
                   </div>
 

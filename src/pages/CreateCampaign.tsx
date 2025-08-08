@@ -57,6 +57,7 @@ const CreateCampaign = () => {
   const [showPrizes, setShowPrizes] = useState(false);
   const [wheelColor, setWheelColor] = useState('#007BFF');
   const [thankYouMessage, setThankYouMessage] = useState('Obrigado por participar da nossa promoção!');
+  const [prizeExpiryDays, setPrizeExpiryDays] = useState(30);
 
   // Step 3 - WhatsApp
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -102,6 +103,7 @@ const CreateCampaign = () => {
           max_uses_per_email: maxUsesPerEmail,
           whatsapp_number: formatPhoneNumber(whatsappNumber),
           whatsapp_message: whatsappMessage,
+          prize_expiry_days: prizeExpiryDays,
         })
         .select()
         .single();
@@ -188,6 +190,8 @@ const CreateCampaign = () => {
             setWheelColor={setWheelColor}
             thankYouMessage={thankYouMessage}
             setThankYouMessage={setThankYouMessage}
+            prizeExpiryDays={prizeExpiryDays}
+            setPrizeExpiryDays={setPrizeExpiryDays}
             onNext={() => setCurrentStep(3)}
             onBack={() => setCurrentStep(1)}
           />

@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft } from 'lucide-react';
+import PrizeExpiryConfig from './PrizeExpiryConfig';
 
 interface CampaignStep2Props {
   description: string;
@@ -19,6 +20,8 @@ interface CampaignStep2Props {
   setWheelColor: (value: string) => void;
   thankYouMessage: string;
   setThankYouMessage: (value: string) => void;
+  prizeExpiryDays: number;
+  setPrizeExpiryDays: (days: number) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -36,6 +39,8 @@ const CampaignStep2 = ({
   setWheelColor,
   thankYouMessage,
   setThankYouMessage,
+  prizeExpiryDays,
+  setPrizeExpiryDays,
   onNext,
   onBack,
 }: CampaignStep2Props) => {
@@ -86,6 +91,12 @@ const CampaignStep2 = ({
           rows={4}
         />
       </div>
+
+      {/* Prazo Limite dos Prêmios */}
+      <PrizeExpiryConfig
+        prizeExpiryDays={prizeExpiryDays}
+        setPrizeExpiryDays={setPrizeExpiryDays}
+      />
 
       {/* Configuração de Exibição de Prêmios */}
       <div className="space-y-4">
