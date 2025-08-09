@@ -97,38 +97,29 @@ const Campaign = () => {
     if (!campaign) return null;
 
     const email = userData.email || userData.Email;
-    console.log('=== VERIFICAÇÃO CRÍTICA DE EMAIL ===');
+    console.log('=== CRIANDO PARTICIPAÇÃO ===');
     console.log('Campaign ID:', campaign.id);
-    console.log('Email verificado:', email);
+    console.log('Email:', email);
     console.log('Limite por email:', campaign.max_uses_per_email);
     
-    // VERIFICAÇÃO RIGOROSA: Bloquear emails duplicados
+    // Verificar se email já participou (caso-insensitivo)
     if (campaign.max_uses_per_email && campaign.max_uses_per_email > 0) {
       try {
-        // Buscar TODAS as participações com este email (case insensitive)
         const { data: existingParticipations, error: countError } = await supabase
           .from('participations')
           .select('*')
           .eq('campaign_id', campaign.id)
           .or(`participant_data->>email.ilike.${email},participant_data->>Email.ilike.${email}`);
 
-        console.log('=== PARTICIPAÇÕES EXISTENTES ===');
-        console.log('Erro na consulta:', countError);
-        console.log('Participações encontradas:', existingParticipations);
+        console.log('Participações existentes encontradas:', existingParticipations?.length || 0);
 
         if (countError) {
           console.error('Erro ao verificar participações:', countError);
-          toast({
-            title: 'Erro ao verificar email',
-            description: 'Tente novamente',
-            variant: 'destructive',
-          });
-          return null;
+          throw new Error('Erro ao verificar participações anteriores');
         }
 
-        // Se encontrou participações, BLOQUEAR
         if (existingParticipations && existingParticipations.length > 0) {
-          console.log('=== EMAIL JÁ PARTICIPOU - BLOQUEADO ===');
+          console.log('=== EMAIL JÁ PARTICIPOU - VERIFICANDO STATUS ===');
           
           const lastParticipation = existingParticipations[existingParticipations.length - 1];
           console.log('Última participação:', lastParticipation);
@@ -148,33 +139,39 @@ const Campaign = () => {
             setShowResult(true);
             setShowDataForm(false);
             setShowWheel(false);
+            
+            toast({
+              title: 'Bem-vindo de volta!',
+              description: 'Você já participou desta campanha. Veja seu prêmio.',
+            });
+            return lastParticipation;
           }
           
           toast({
             title: 'Email já utilizado',
-            description: `Este email já foi usado ${existingParticipations.length} vez(es) nesta campanha.`,
+            description: `Este email já foi usado nesta campanha (limite: ${campaign.max_uses_per_email} uso${campaign.max_uses_per_email > 1 ? 's' : ''}).`,
             variant: 'destructive',
           });
           return null;
         }
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erro na verificação de email:', error);
         toast({
           title: 'Erro na verificação',
-          description: 'Tente novamente',
+          description: error.message || 'Tente novamente',
           variant: 'destructive',
         });
         return null;
       }
     }
 
-    // Criar nova participação com timestamp em São Paulo
+    // Criar nova participação
     try {
       console.log('=== CRIANDO NOVA PARTICIPAÇÃO ===');
       const saoPauloTime = toZonedTime(new Date(), 'America/Sao_Paulo');
       
-      const { data, error } = await supabase
+      const { data: newParticipation, error: insertError } = await supabase
         .from('participations')
         .insert({
           campaign_id: campaign.id,
@@ -185,20 +182,21 @@ const Campaign = () => {
         .select()
         .single();
 
-      if (error) {
-        console.error('Erro ao criar participação:', error);
-        throw error;
+      if (insertError) {
+        console.error('Erro ao inserir participação:', insertError);
+        throw new Error(insertError.message);
       }
       
-      console.log('=== PARTICIPAÇÃO CRIADA COM SUCESSO ===');
-      console.log('Nova participação:', data);
-      return data;
+      console.log('=== PARTICIPAÇÃO CRIADA ===');
+      console.log('Nova participação:', newParticipation);
       
-    } catch (error) {
+      return newParticipation;
+      
+    } catch (error: any) {
       console.error('Erro ao criar participação:', error);
       toast({
-        title: 'Erro ao registrar',
-        description: 'Não foi possível registrar sua participação',
+        title: 'Erro ao registrar participação',
+        description: error.message || 'Não foi possível registrar sua participação',
         variant: 'destructive',
       });
       return null;
@@ -206,74 +204,83 @@ const Campaign = () => {
   };
 
   const handlePrizeWon = async (prize: any) => {
-    if (!currentParticipation || hasAlreadySpun) {
-      console.log('=== NÃO PODE PROCESSAR PRÊMIO ===');
+    console.log('=== INÍCIO DO PROCESSAMENTO DE PRÊMIO ===');
+    console.log('Prêmio recebido:', prize);
+    console.log('Participação atual:', currentParticipation);
+    console.log('Já girou antes:', hasAlreadySpun);
+
+    if (!currentParticipation) {
+      console.error('=== ERRO: Nenhuma participação encontrada ===');
+      toast({
+        title: 'Erro',
+        description: 'Participação não encontrada. Tente novamente.',
+        variant: 'destructive',
+      });
       return;
     }
 
-    console.log('=== PROCESSANDO PRÊMIO GANHO ===');
-    console.log('Prêmio:', prize);
-    console.log('ID da Participação:', currentParticipation.id);
-    
-    setIsSpinning(false);
-
-    // Calcular data de expiração no horário de São Paulo
-    const expiryDays = campaign?.prize_expiry_days || 30;
-    const saoPauloNow = toZonedTime(new Date(), 'America/Sao_Paulo');
-    const expiryDate = addDays(saoPauloNow, expiryDays);
-    setPrizeExpiryDate(expiryDate);
+    if (hasAlreadySpun) {
+      console.log('=== JÁ GIROU ANTES - IGNORANDO ===');
+      return;
+    }
 
     try {
-      console.log('=== ATUALIZANDO PARTICIPAÇÃO COM PRÊMIO ===');
+      console.log('=== SALVANDO PRÊMIO NO BANCO ===');
+      setIsSpinning(false);
       
+      // Calcular data de expiração
+      const expiryDays = campaign?.prize_expiry_days || 30;
+      const saoPauloNow = toZonedTime(new Date(), 'America/Sao_Paulo');
+      const expiryDate = addDays(saoPauloNow, expiryDays);
+      setPrizeExpiryDate(expiryDate);
+
+      // Preparar dados para atualização
       const updateData = {
         has_spun: true,
-        prize_won: prize.name,
+        prize_won: prize.name || 'Tente Novamente',
         coupon_code: prize.couponCode || null,
         updated_at: saoPauloNow.toISOString()
       };
       
+      console.log('Atualizando participação ID:', currentParticipation.id);
       console.log('Dados para atualização:', updateData);
       
-      const { data: updatedData, error } = await supabase
+      const { data: updatedParticipation, error: updateError } = await supabase
         .from('participations')
         .update(updateData)
         .eq('id', currentParticipation.id)
         .select()
         .single();
 
-      if (error) {
-        console.error('Erro ao atualizar participação:', error);
-        throw error;
+      if (updateError) {
+        console.error('Erro na atualização:', updateError);
+        throw new Error(`Erro ao salvar: ${updateError.message}`);
       }
 
-      console.log('=== PARTICIPAÇÃO ATUALIZADA COM SUCESSO ===');
-      console.log('Dados atualizados:', updatedData);
+      console.log('=== PRÊMIO SALVO COM SUCESSO ===');
+      console.log('Participação atualizada:', updatedParticipation);
       
       // Atualizar estado local
-      const updatedParticipation = {
-        ...currentParticipation,
-        has_spun: true,
-        prize_won: prize.name,
-        coupon_code: prize.couponCode || null
-      };
-      
       setCurrentParticipation(updatedParticipation);
-      setWonPrize(prize.name);
+      setWonPrize(prize.name || 'Tente Novamente');
       setWonCoupon(prize.couponCode || '');
       setHasAlreadySpun(true);
       setShowResult(true);
       
       toast({
-        title: 'Prêmio salvo!',
-        description: `Você ganhou: ${prize.name}`,
+        title: 'Prêmio registrado!',
+        description: `Você ganhou: ${prize.name || 'Tente Novamente'}`,
       });
       
-    } catch (error) {
-      console.error('Erro ao salvar prêmio:', error);
+    } catch (error: any) {
+      console.error('=== ERRO AO SALVAR PRÊMIO ===');
+      console.error('Erro completo:', error);
+      
+      setIsSpinning(false);
+      
       toast({
         title: 'Erro ao salvar prêmio',
-        description: 'Houve um problema. Entre em contato conosco.',
+        description: error.message || 'Houve um problema ao salvar seu prêmio. Entre em contato conosco.',
         variant: 'destructive',
       });
     }
@@ -283,22 +290,33 @@ const Campaign = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const data = Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement));
-    console.log('=== FORMULÁRIO ENVIADO ===');
-    console.log('Dados do formulário:', data);
-    
-    setFormData(data);
+    try {
+      const formElement = e.currentTarget as HTMLFormElement;
+      const formDataObject = Object.fromEntries(new FormData(formElement));
+      
+      console.log('=== FORMULÁRIO ENVIADO ===');
+      console.log('Dados do formulário:', formDataObject);
+      
+      setFormData(formDataObject);
 
-    const participation = await createParticipation(data);
+      const participation = await createParticipation(formDataObject);
 
-    if (participation) {
-      console.log('=== PARTICIPAÇÃO BEM SUCEDIDA ===');
-      setCurrentParticipation(participation);
-      setShowDataForm(false);
-      setShowWheel(true);
+      if (participation) {
+        console.log('=== PARTICIPAÇÃO CRIADA COM SUCESSO ===');
+        setCurrentParticipation(participation);
+        setShowDataForm(false);
+        setShowWheel(true);
+      }
+    } catch (error: any) {
+      console.error('Erro no envio do formulário:', error);
+      toast({
+        title: 'Erro no formulário',
+        description: error.message || 'Erro ao processar formulário',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const renderDataForm = () => (
@@ -316,7 +334,7 @@ const Campaign = () => {
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardContent className="p-6">
             <form onSubmit={handleFormSubmit} className="space-y-4">
-              {campaign.campaign_custom_fields.map(field => (
+              {campaign?.campaign_custom_fields.map(field => (
                 <div key={field.id} className="space-y-2">
                   <Label htmlFor={field.name} className="text-sm font-medium text-gray-700">
                     {field.name} {field.required && <span className="text-red-500">*</span>}
@@ -442,7 +460,7 @@ const Campaign = () => {
         {/* Campaign Title */}
         <div className="text-center mb-6">
           <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
-            {campaign.name}
+            {campaign?.name}
           </h1>
           <p className="text-gray-600 text-sm">Gire a roda e ganhe prêmios incríveis!</p>
         </div>
@@ -450,7 +468,7 @@ const Campaign = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Lado esquerdo - Informações em acordeão (menor espaço) */}
           <div className="lg:col-span-1">
-            {(campaign.description || campaign.rules || campaign.prize_description) && (
+            {(campaign?.description || campaign?.rules || campaign?.prize_description) && (
               <Accordion type="single" collapsible className="space-y-2">
                 {campaign.description && (
                   <AccordionItem value="about" className="border rounded-lg bg-white/80 backdrop-blur-sm shadow-sm">
@@ -511,15 +529,15 @@ const Campaign = () => {
                 
                 <div className="w-full flex justify-center">
                   <SpinWheel
-                    prizes={campaign.campaign_prizes.map(prize => ({
+                    prizes={campaign?.campaign_prizes.map(prize => ({
                       id: prize.id,
                       name: prize.name,
                       percentage: prize.percentage,
                       couponCode: prize.coupon_code || ''
-                    }))}
+                    })) || []}
                     onSpin={hasAlreadySpun ? () => {} : handlePrizeWon}
                     isSpinning={isSpinning}
-                    wheelColor={campaign.wheel_color || '#3B82F6'}
+                    wheelColor={campaign?.wheel_color || '#3B82F6'}
                   />
                 </div>
                 
@@ -542,6 +560,28 @@ const Campaign = () => {
       {showResult && renderResultPopup()}
     </div>
   );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando campanha...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!campaign) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Campanha não encontrada</h2>
+          <p className="text-gray-600">Esta campanha não existe ou não está mais ativa.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
