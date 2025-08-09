@@ -2,7 +2,7 @@
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface PrizeExpiryConfigProps {
   prizeExpiryDays: number;
@@ -12,6 +12,13 @@ interface PrizeExpiryConfigProps {
 const PrizeExpiryConfig = ({ prizeExpiryDays, setPrizeExpiryDays }: PrizeExpiryConfigProps) => {
   const [customDays, setCustomDays] = useState(prizeExpiryDays > 30 ? prizeExpiryDays : 30);
 
+  useEffect(() => {
+    // Atualizar customDays quando prizeExpiryDays mudar externamente
+    if (prizeExpiryDays > 30) {
+      setCustomDays(prizeExpiryDays);
+    }
+  }, [prizeExpiryDays]);
+
   const handleExpiryChange = (value: string) => {
     if (value === 'custom') {
       setPrizeExpiryDays(customDays);
@@ -20,9 +27,10 @@ const PrizeExpiryConfig = ({ prizeExpiryDays, setPrizeExpiryDays }: PrizeExpiryC
     }
   };
 
-  const handleCustomDaysChange = (days: number) => {
+  const handleCustomDaysChange = (value: string) => {
+    const days = parseInt(value) || 1;
     setCustomDays(days);
-    if (prizeExpiryDays > 30 || getCurrentOption() === 'custom') {
+    if (getCurrentOption() === 'custom') {
       setPrizeExpiryDays(days);
     }
   };
@@ -59,7 +67,7 @@ const PrizeExpiryConfig = ({ prizeExpiryDays, setPrizeExpiryDays }: PrizeExpiryC
             id="customDays"
             placeholder="Ex: 60"
             value={customDays}
-            onChange={(e) => handleCustomDaysChange(parseInt(e.target.value) || 30)}
+            onChange={(e) => handleCustomDaysChange(e.target.value)}
             min="1"
             max="365"
           />

@@ -1,14 +1,15 @@
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import SpinWheel from '@/components/SpinWheel';
 import { supabase } from '@/integrations/supabase/client';
-import { Gift, Trophy, X, Calendar } from 'lucide-react';
+import { Gift, Trophy, Calendar } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -43,6 +44,7 @@ interface CampaignData {
 
 const Campaign = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -280,18 +282,15 @@ const Campaign = () => {
     return `https://wa.me/${campaign.whatsapp_number}?text=${encodedMessage}`;
   };
 
+  const handleGoToCampaign = () => {
+    setShowResult(false);
+    // A pessoa não conseguirá girar novamente pois hasAlreadySpun = true
+  };
+
   const renderResultPopup = () => (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-md text-center shadow-2xl animate-scale-in border-0 bg-white">
-        <CardHeader className="pb-4 relative bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-2 top-2 p-1 h-8 w-8 hover:bg-white/50"
-            onClick={() => setShowResult(false)}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+        <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
               <Trophy className="w-8 h-8 text-white" />
@@ -334,22 +333,24 @@ const Campaign = () => {
               <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded-lg">{campaign.thank_you_message}</p>
             )}
             
-            {getWhatsAppLink() && wonPrize !== 'Tente Novamente' && (
-              <Button
-                onClick={() => window.open(getWhatsAppLink(), '_blank')}
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                🎁 Resgatar Prêmio
-              </Button>
-            )}
+            <div className="space-y-3">
+              {getWhatsAppLink() && wonPrize !== 'Tente Novamente' && (
+                <Button
+                  onClick={() => window.open(getWhatsAppLink(), '_blank')}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  🎁 Resgatar Prêmio
+                </Button>
+              )}
 
-            <Button
-              onClick={() => setShowResult(false)}
-              variant="outline"
-              className="w-full border-gray-200 hover:bg-gray-50"
-            >
-              Fechar
-            </Button>
+              <Button
+                onClick={handleGoToCampaign}
+                variant="outline"
+                className="w-full border-gray-200 hover:bg-gray-50"
+              >
+                Voltar para a Campanha
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -357,87 +358,94 @@ const Campaign = () => {
   );
 
   const renderWheel = () => (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
-      <div className="container mx-auto max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="container mx-auto max-w-4xl px-4 py-6">
         {/* Campaign Title */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
             {campaign.name}
           </h1>
-          <p className="text-gray-600">Gire a roda e ganhe prêmios incríveis!</p>
+          <p className="text-gray-600 text-sm">Gire a roda e ganhe prêmios incríveis!</p>
         </div>
 
-        {/* Campaign Information Cards */}
-        {(campaign.description || campaign.rules || campaign.prize_description) && (
-          <div className="space-y-4 mb-8">
-            {campaign.description && (
-              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
-                    <Gift className="w-5 h-5 text-blue-600" />
-                    Sobre a Campanha
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 text-sm leading-relaxed">{campaign.description}</p>
-                </CardContent>
-              </Card>
-            )}
-            
-            {campaign.rules && (
-              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-blue-600" />
-                    Regras
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{campaign.rules}</div>
-                </CardContent>
-              </Card>
-            )}
-            
-            {campaign.prize_description && (
-              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-blue-600" />
-                    Descrição dos Prêmios
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 text-sm leading-relaxed">{campaign.prize_description}</p>
-                </CardContent>
-              </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Lado esquerdo - Informações em acordeão */}
+          <div className="lg:col-span-1 space-y-4">
+            {(campaign.description || campaign.rules || campaign.prize_description) && (
+              <Accordion type="single" collapsible className="space-y-3">
+                {campaign.description && (
+                  <AccordionItem value="about" className="border rounded-lg bg-white/80 backdrop-blur-sm shadow-sm">
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                      <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                        <Gift className="w-4 h-4" />
+                        Sobre a Campanha
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 pb-4">
+                      <p className="text-gray-600 text-xs leading-relaxed">{campaign.description}</p>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+                
+                {campaign.rules && (
+                  <AccordionItem value="rules" className="border rounded-lg bg-white/80 backdrop-blur-sm shadow-sm">
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                      <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                        <Trophy className="w-4 h-4" />
+                        Regras
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 pb-4">
+                      <div className="text-gray-600 text-xs leading-relaxed whitespace-pre-line">{campaign.rules}</div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+                
+                {campaign.prize_description && (
+                  <AccordionItem value="prizes" className="border rounded-lg bg-white/80 backdrop-blur-sm shadow-sm">
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                      <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                        <Calendar className="w-4 h-4" />
+                        Descrição dos Prêmios
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 pb-4">
+                      <p className="text-gray-600 text-xs leading-relaxed">{campaign.prize_description}</p>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+              </Accordion>
             )}
           </div>
-        )}
-        
-        {/* Wheel Section */}
-        <div className="flex justify-center">
-          <Card className="shadow-xl p-6 border-0 bg-white/90 backdrop-blur-sm">
-            <div className="flex flex-col items-center">
-              {hasAlreadySpun && (
-                <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
-                  <p className="text-yellow-700 text-sm font-medium text-center">
-                    Você já participou desta campanha!
-                  </p>
+
+          {/* Lado direito - Roda */}
+          <div className="lg:col-span-2 flex justify-center items-start">
+            <Card className="shadow-xl p-4 md:p-6 border-0 bg-white/90 backdrop-blur-sm w-full max-w-lg">
+              <div className="flex flex-col items-center">
+                {hasAlreadySpun && (
+                  <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg w-full">
+                    <p className="text-yellow-700 text-sm font-medium text-center">
+                      Você já participou desta campanha!
+                    </p>
+                  </div>
+                )}
+                
+                <div className="w-full flex justify-center">
+                  <SpinWheel
+                    prizes={campaign.campaign_prizes.map(prize => ({
+                      id: prize.id,
+                      name: prize.name,
+                      percentage: prize.percentage,
+                      couponCode: prize.coupon_code || ''
+                    }))}
+                    onSpin={hasAlreadySpun ? () => {} : handlePrizeWon}
+                    isSpinning={isSpinning}
+                    wheelColor={campaign.wheel_color || '#3B82F6'}
+                  />
                 </div>
-              )}
-              <SpinWheel
-                prizes={campaign.campaign_prizes.map(prize => ({
-                  id: prize.id,
-                  name: prize.name,
-                  percentage: prize.percentage,
-                  couponCode: prize.coupon_code || ''
-                }))}
-                onSpin={hasAlreadySpun ? () => {} : handlePrizeWon}
-                isSpinning={isSpinning}
-                wheelColor={campaign.wheel_color || '#3B82F6'}
-              />
-            </div>
-          </Card>
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
       
