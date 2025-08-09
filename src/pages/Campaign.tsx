@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Gift, Trophy, Calendar } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 interface CampaignData {
   id: string;
@@ -93,145 +93,112 @@ const Campaign = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-lg font-semibold text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!campaign) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="max-w-md mx-auto text-center shadow-xl">
-          <CardContent className="p-8">
-            <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-xl font-semibold text-gray-600">Campanha não encontrada</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   const createParticipation = async (userData: any) => {
     if (!campaign) return null;
 
     const email = userData.email || userData.Email;
-    console.log('=== CHECKING EMAIL PARTICIPATION ===');
+    console.log('=== VERIFICAÇÃO CRÍTICA DE EMAIL ===');
     console.log('Campaign ID:', campaign.id);
-    console.log('Email to check:', email);
-    console.log('Max uses per email:', campaign.max_uses_per_email);
+    console.log('Email verificado:', email);
+    console.log('Limite por email:', campaign.max_uses_per_email);
     
-    // VERIFICAÇÃO CRÍTICA: Verificar se já existe participação para este email
+    // VERIFICAÇÃO RIGOROSA: Bloquear emails duplicados
     if (campaign.max_uses_per_email && campaign.max_uses_per_email > 0) {
       try {
-        // Buscar todas as participações deste email nesta campanha
+        // Buscar TODAS as participações com este email (case insensitive)
         const { data: existingParticipations, error: countError } = await supabase
           .from('participations')
           .select('*')
           .eq('campaign_id', campaign.id)
-          .filter('participant_data->>email', 'ilike', email);
+          .or(`participant_data->>email.ilike.${email},participant_data->>Email.ilike.${email}`);
 
-        console.log('=== EXISTING PARTICIPATIONS QUERY ===');
-        console.log('Query error:', countError);
-        console.log('Existing participations found:', existingParticipations);
+        console.log('=== PARTICIPAÇÕES EXISTENTES ===');
+        console.log('Erro na consulta:', countError);
+        console.log('Participações encontradas:', existingParticipations);
 
         if (countError) {
-          console.error('Error checking participation count:', countError);
+          console.error('Erro ao verificar participações:', countError);
           toast({
-            title: 'Erro ao verificar participações',
-            description: 'Tente novamente em alguns instantes',
+            title: 'Erro ao verificar email',
+            description: 'Tente novamente',
             variant: 'destructive',
           });
           return null;
         }
 
-        if (existingParticipations && existingParticipations.length >= campaign.max_uses_per_email) {
-          console.log('=== EMAIL LIMIT REACHED ===');
-          console.log(`Email ${email} já atingiu o limite de ${campaign.max_uses_per_email} participações`);
+        // Se encontrou participações, BLOQUEAR
+        if (existingParticipations && existingParticipations.length > 0) {
+          console.log('=== EMAIL JÁ PARTICIPOU - BLOQUEADO ===');
           
-          // Verificar se já girou a roda
-          const hasSpunParticipation = existingParticipations.find(p => p.has_spun === true);
+          const lastParticipation = existingParticipations[existingParticipations.length - 1];
+          console.log('Última participação:', lastParticipation);
           
-          if (hasSpunParticipation) {
-            console.log('=== USER ALREADY SPUN ===');
-            console.log('Previous participation:', hasSpunParticipation);
-            
-            setCurrentParticipation(hasSpunParticipation);
+          // Se já girou, mostrar resultado anterior
+          if (lastParticipation.has_spun) {
+            setCurrentParticipation(lastParticipation);
             setHasAlreadySpun(true);
-            setWonPrize(hasSpunParticipation.prize_won || 'Tente Novamente');
-            setWonCoupon(hasSpunParticipation.coupon_code || '');
+            setWonPrize(lastParticipation.prize_won || 'Tente Novamente');
+            setWonCoupon(lastParticipation.coupon_code || '');
             
-            // Calcular data de expiração
             const expiryDays = campaign?.prize_expiry_days || 30;
-            const participationDate = new Date(hasSpunParticipation.created_at);
+            const participationDate = toZonedTime(new Date(lastParticipation.created_at), 'America/Sao_Paulo');
             const expiryDate = addDays(participationDate, expiryDays);
             setPrizeExpiryDate(expiryDate);
             
             setShowResult(true);
             setShowDataForm(false);
             setShowWheel(false);
-            
-            toast({
-              title: 'Você já participou!',
-              description: 'Este email já foi usado nesta campanha.',
-              variant: 'destructive',
-            });
-            return null;
-          } else {
-            // Se não girou ainda, mostrar erro
-            toast({
-              title: 'Limite de participações atingido',
-              description: `Este email já atingiu o limite de ${campaign.max_uses_per_email} participação(ões) nesta campanha.`,
-              variant: 'destructive',
-            });
-            return null;
           }
+          
+          toast({
+            title: 'Email já utilizado',
+            description: `Este email já foi usado ${existingParticipations.length} vez(es) nesta campanha.`,
+            variant: 'destructive',
+          });
+          return null;
         }
+
       } catch (error) {
-        console.error('Error in email verification:', error);
+        console.error('Erro na verificação de email:', error);
         toast({
-          title: 'Erro ao verificar email',
-          description: 'Tente novamente em alguns instantes',
+          title: 'Erro na verificação',
+          description: 'Tente novamente',
           variant: 'destructive',
         });
         return null;
       }
     }
 
-    // Criar nova participação
+    // Criar nova participação com timestamp em São Paulo
     try {
-      console.log('=== CREATING NEW PARTICIPATION ===');
-      console.log('User data:', userData);
+      console.log('=== CRIANDO NOVA PARTICIPAÇÃO ===');
+      const saoPauloTime = toZonedTime(new Date(), 'America/Sao_Paulo');
       
       const { data, error } = await supabase
         .from('participations')
         .insert({
           campaign_id: campaign.id,
           participant_data: userData,
-          has_spun: false
+          has_spun: false,
+          created_at: saoPauloTime.toISOString()
         })
         .select()
         .single();
 
       if (error) {
-        console.error('Error creating participation:', error);
+        console.error('Erro ao criar participação:', error);
         throw error;
       }
       
-      console.log('=== PARTICIPATION CREATED ===');
-      console.log('New participation:', data);
+      console.log('=== PARTICIPAÇÃO CRIADA COM SUCESSO ===');
+      console.log('Nova participação:', data);
       return data;
       
     } catch (error) {
-      console.error('Error creating participation:', error);
+      console.error('Erro ao criar participação:', error);
       toast({
-        title: 'Erro ao registrar participação',
-        description: 'Tente novamente em alguns instantes',
+        title: 'Erro ao registrar',
+        description: 'Não foi possível registrar sua participação',
         variant: 'destructive',
       });
       return null;
@@ -240,71 +207,73 @@ const Campaign = () => {
 
   const handlePrizeWon = async (prize: any) => {
     if (!currentParticipation || hasAlreadySpun) {
-      console.log('=== CANNOT HANDLE PRIZE ===');
-      console.log('Current participation:', currentParticipation);
-      console.log('Has already spun:', hasAlreadySpun);
+      console.log('=== NÃO PODE PROCESSAR PRÊMIO ===');
       return;
     }
 
-    console.log('=== HANDLING PRIZE WON ===');
-    console.log('Prize won:', prize);
-    console.log('Participation ID:', currentParticipation.id);
+    console.log('=== PROCESSANDO PRÊMIO GANHO ===');
+    console.log('Prêmio:', prize);
+    console.log('ID da Participação:', currentParticipation.id);
     
     setIsSpinning(false);
 
-    // Calcular data de expiração do prêmio
+    // Calcular data de expiração no horário de São Paulo
     const expiryDays = campaign?.prize_expiry_days || 30;
-    const expiryDate = addDays(new Date(), expiryDays);
+    const saoPauloNow = toZonedTime(new Date(), 'America/Sao_Paulo');
+    const expiryDate = addDays(saoPauloNow, expiryDays);
     setPrizeExpiryDate(expiryDate);
 
     try {
-      console.log('=== UPDATING PARTICIPATION WITH PRIZE ===');
-      console.log('Updating participation:', currentParticipation.id);
-      console.log('Prize name:', prize.name);
-      console.log('Coupon code:', prize.couponCode);
+      console.log('=== ATUALIZANDO PARTICIPAÇÃO COM PRÊMIO ===');
+      
+      const updateData = {
+        has_spun: true,
+        prize_won: prize.name,
+        coupon_code: prize.couponCode || null,
+        updated_at: saoPauloNow.toISOString()
+      };
+      
+      console.log('Dados para atualização:', updateData);
       
       const { data: updatedData, error } = await supabase
         .from('participations')
-        .update({
-          has_spun: true,
-          prize_won: prize.name,
-          coupon_code: prize.couponCode || null
-        })
+        .update(updateData)
         .eq('id', currentParticipation.id)
         .select()
         .single();
 
       if (error) {
-        console.error('Error updating participation:', error);
+        console.error('Erro ao atualizar participação:', error);
         throw error;
       }
 
-      console.log('=== PARTICIPATION UPDATED SUCCESSFULLY ===');
-      console.log('Updated data:', updatedData);
+      console.log('=== PARTICIPAÇÃO ATUALIZADA COM SUCESSO ===');
+      console.log('Dados atualizados:', updatedData);
       
-      // Atualizar o estado local
-      setCurrentParticipation({
+      // Atualizar estado local
+      const updatedParticipation = {
         ...currentParticipation,
         has_spun: true,
         prize_won: prize.name,
         coupon_code: prize.couponCode || null
-      });
-
+      };
+      
+      setCurrentParticipation(updatedParticipation);
       setWonPrize(prize.name);
       setWonCoupon(prize.couponCode || '');
       setHasAlreadySpun(true);
       setShowResult(true);
       
       toast({
-        title: 'Prêmio registrado!',
+        title: 'Prêmio salvo!',
         description: `Você ganhou: ${prize.name}`,
       });
       
     } catch (error) {
-      console.error('Error updating participation with prize:', error);
+      console.error('Erro ao salvar prêmio:', error);
       toast({
-        title: 'Erro ao salvar resultado',
-        description: 'Houve um problema ao salvar seu prêmio. Entre em contato conosco.',
+        title: 'Erro ao salvar prêmio',
+        description: 'Houve um problema. Entre em contato conosco.',
         variant: 'destructive',
       });
     }
@@ -315,20 +284,18 @@ const Campaign = () => {
     setIsLoading(true);
 
     const data = Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement));
-    console.log('=== FORM SUBMITTED ===');
-    console.log('Form data:', data);
+    console.log('=== FORMULÁRIO ENVIADO ===');
+    console.log('Dados do formulário:', data);
     
     setFormData(data);
 
     const participation = await createParticipation(data);
 
     if (participation) {
-      console.log('=== PARTICIPATION SUCCESSFUL ===');
+      console.log('=== PARTICIPAÇÃO BEM SUCEDIDA ===');
       setCurrentParticipation(participation);
       setShowDataForm(false);
       setShowWheel(true);
-    } else {
-      console.log('=== PARTICIPATION FAILED ===');
     }
 
     setIsLoading(false);
@@ -387,7 +354,7 @@ const Campaign = () => {
   };
 
   const handleGoToCampaign = () => {
-    // Resetar todos os estados para nova participação
+    // Reset para nova participação
     setShowResult(false);
     setShowWheel(false);
     setShowDataForm(true);
@@ -400,7 +367,7 @@ const Campaign = () => {
   };
 
   const renderResultPopup = () => (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-md text-center shadow-2xl animate-scale-in border-0 bg-white">
         <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
           <div className="flex justify-center mb-4">
@@ -434,7 +401,7 @@ const Campaign = () => {
               <div className="flex items-center justify-center gap-2 text-orange-600">
                 <Calendar className="w-4 h-4" />
                 <p className="text-sm font-medium">
-                  Válido até: {format(prizeExpiryDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  Válido até: {formatInTimeZone(prizeExpiryDate, 'America/Sao_Paulo', "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
                 </p>
               </div>
             </div>

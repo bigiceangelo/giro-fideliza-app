@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { formatInTimeZone } from 'date-fns-tz';
+import { ptBR } from 'date-fns/locale';
 
 interface Participant {
   campaignId: string;
@@ -92,24 +93,31 @@ const ParticipantsModal = ({
       return;
     }
 
-    const headers = ['Nome', 'Email', 'Telefone', 'Prêmio', 'Cupom', 'Status do Cupom', 'Data de Participação'];
+    const headers = ['Nome', 'Email', 'Telefone', 'Prêmio', 'Cupom', 'Status do Cupom', 'Data/Hora de Participação'];
     const rows = participants.map(p => {
       const nome = extractParticipantValue(p, ['Nome', 'name', 'nome']);
       const email = extractParticipantValue(p, ['Email', 'email']);
       const telefone = extractParticipantValue(p, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
       
-      // CRITICAL FIX: Usar dados diretos do banco
       const hasSpun = p.has_spun === true;
       const prizeWon = p.prize_won;
       const couponCode = p.coupon_code;
       const couponUsed = p.coupon_used === true;
       
-      const premio = hasSpun ? (prizeWon || 'Girou - sem prêmio') : 'Não girou';
+      const premio = hasSpun ? (prizeWon || 'Tente Novamente') : 'Não girou';
       const cupom = couponCode || 'N/A';
-      const statusCupom = couponUsed ? 'Usado' : 'Não usado';
-      const data = new Date(p.timestamp || p.created_at || p.createdAt).toLocaleDateString('pt-BR');
+      const statusCupom = couponCode ? (couponUsed ? 'Usado' : 'Não usado') : 'N/A';
       
-      return [nome, email, telefone, premio, cupom, statusCupom, data];
+      // Formatar data/hora no horário de São Paulo
+      const participationDate = p.timestamp || p.created_at || p.createdAt;
+      const dataFormatada = formatInTimeZone(
+        new Date(participationDate),
+        'America/Sao_Paulo',
+        'dd/MM/yyyy HH:mm:ss',
+        { locale: ptBR }
+      );
+      
+      return [nome, email, telefone, premio, cupom, statusCupom, dataFormatada];
     });
 
     const csvContent = [headers, ...rows]
@@ -157,30 +165,28 @@ const ParticipantsModal = ({
                   <TableHead>Prêmio</TableHead>
                   <TableHead>Cupom</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Data/Hora</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {participants.map((participant, index) => {
-                  console.log('=== RENDERING PARTICIPANT ===');
-                  console.log('Full participant object:', participant);
-                  
                   const nome = extractParticipantValue(participant, ['Nome', 'name', 'nome']);
                   const email = extractParticipantValue(participant, ['Email', 'email']);
                   const telefone = extractParticipantValue(participant, ['Telefone', 'WhatsApp', 'phone', 'telefone', 'whatsapp']);
                   
-                  // CRITICAL FIX: Usar dados diretos do banco de dados
                   const hasSpun = participant.has_spun === true;
                   const prizeWon = participant.prize_won;
                   const couponCode = participant.coupon_code;
                   const couponUsed = participant.coupon_used === true;
                   
-                  console.log('=== EXTRACTED VALUES ===');
-                  console.log('Has spun:', hasSpun);
-                  console.log('Prize won:', prizeWon);
-                  console.log('Coupon code:', couponCode);
-                  console.log('Coupon used:', couponUsed);
+                  const participationDate = participant.timestamp || participant.created_at || participant.createdAt;
+                  const dataFormatada = formatInTimeZone(
+                    new Date(participationDate),
+                    'America/Sao_Paulo',
+                    'dd/MM/yyyy HH:mm',
+                    { locale: ptBR }
+                  );
                   
                   return (
                     <TableRow key={index}>
@@ -192,7 +198,7 @@ const ParticipantsModal = ({
                           prizeWon ? (
                             <Badge variant="default">{prizeWon}</Badge>
                           ) : (
-                            <Badge variant="secondary">Girou - sem prêmio</Badge>
+                            <Badge variant="secondary">Tente Novamente</Badge>
                           )
                         ) : (
                           <Badge variant="secondary">Não girou</Badge>
@@ -206,9 +212,7 @@ const ParticipantsModal = ({
                           </Badge>
                         ) : null}
                       </TableCell>
-                      <TableCell>
-                        {new Date(participant.timestamp || participant.created_at || participant.createdAt).toLocaleDateString('pt-BR')}
-                      </TableCell>
+                      <TableCell>{dataFormatada}</TableCell>
                       <TableCell>
                         {couponCode ? (
                           <Button
