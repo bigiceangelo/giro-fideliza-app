@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -120,47 +121,93 @@ const Campaign = () => {
     if (!campaign) return null;
 
     const email = userData.email || userData.Email;
+    console.log('=== CHECKING EMAIL PARTICIPATION ===');
+    console.log('Campaign ID:', campaign.id);
+    console.log('Email to check:', email);
+    console.log('Max uses per email:', campaign.max_uses_per_email);
     
-    // Verificar limite de participações por email
+    // VERIFICAÇÃO CRÍTICA: Verificar se já existe participação para este email
     if (campaign.max_uses_per_email && campaign.max_uses_per_email > 0) {
-      const { data: existingParticipations, error: countError } = await supabase
-        .from('participations')
-        .select('*')
-        .eq('campaign_id', campaign.id)
-        .contains('participant_data', { email });
+      try {
+        // Buscar todas as participações deste email nesta campanha
+        const { data: existingParticipations, error: countError } = await supabase
+          .from('participations')
+          .select('*')
+          .eq('campaign_id', campaign.id)
+          .filter('participant_data->>email', 'ilike', email);
 
-      if (countError) {
-        console.error('Error checking participation count:', countError);
-        return null;
-      }
+        console.log('=== EXISTING PARTICIPATIONS QUERY ===');
+        console.log('Query error:', countError);
+        console.log('Existing participations found:', existingParticipations);
 
-      if (existingParticipations && existingParticipations.length >= campaign.max_uses_per_email) {
-        // Verificar se já girou a roda
-        const hasSpunParticipation = existingParticipations.find(p => p.has_spun === true);
-        if (hasSpunParticipation) {
-          setCurrentParticipation(hasSpunParticipation);
-          setHasAlreadySpun(true);
-          setWonPrize(hasSpunParticipation.prize_won || 'Tente Novamente');
-          setWonCoupon(hasSpunParticipation.coupon_code || '');
-          
-          // Calcular data de expiração
-          const expiryDays = campaign?.prize_expiry_days || 30;
-          const participationDate = new Date(hasSpunParticipation.created_at);
-          const expiryDate = addDays(participationDate, expiryDays);
-          setPrizeExpiryDate(expiryDate);
-          
-          setShowResult(true);
+        if (countError) {
+          console.error('Error checking participation count:', countError);
+          toast({
+            title: 'Erro ao verificar participações',
+            description: 'Tente novamente em alguns instantes',
+            variant: 'destructive',
+          });
           return null;
         }
-        
-        // Se não girou ainda, usar a participação existente
-        const existingParticipation = existingParticipations[0];
-        setCurrentParticipation(existingParticipation);
-        return existingParticipation;
+
+        if (existingParticipations && existingParticipations.length >= campaign.max_uses_per_email) {
+          console.log('=== EMAIL LIMIT REACHED ===');
+          console.log(`Email ${email} já atingiu o limite de ${campaign.max_uses_per_email} participações`);
+          
+          // Verificar se já girou a roda
+          const hasSpunParticipation = existingParticipations.find(p => p.has_spun === true);
+          
+          if (hasSpunParticipation) {
+            console.log('=== USER ALREADY SPUN ===');
+            console.log('Previous participation:', hasSpunParticipation);
+            
+            setCurrentParticipation(hasSpunParticipation);
+            setHasAlreadySpun(true);
+            setWonPrize(hasSpunParticipation.prize_won || 'Tente Novamente');
+            setWonCoupon(hasSpunParticipation.coupon_code || '');
+            
+            // Calcular data de expiração
+            const expiryDays = campaign?.prize_expiry_days || 30;
+            const participationDate = new Date(hasSpunParticipation.created_at);
+            const expiryDate = addDays(participationDate, expiryDays);
+            setPrizeExpiryDate(expiryDate);
+            
+            setShowResult(true);
+            setShowDataForm(false);
+            setShowWheel(false);
+            
+            toast({
+              title: 'Você já participou!',
+              description: 'Este email já foi usado nesta campanha.',
+              variant: 'destructive',
+            });
+            return null;
+          } else {
+            // Se não girou ainda, mostrar erro
+            toast({
+              title: 'Limite de participações atingido',
+              description: `Este email já atingiu o limite de ${campaign.max_uses_per_email} participação(ões) nesta campanha.`,
+              variant: 'destructive',
+            });
+            return null;
+          }
+        }
+      } catch (error) {
+        console.error('Error in email verification:', error);
+        toast({
+          title: 'Erro ao verificar email',
+          description: 'Tente novamente em alguns instantes',
+          variant: 'destructive',
+        });
+        return null;
       }
     }
 
+    // Criar nova participação
     try {
+      console.log('=== CREATING NEW PARTICIPATION ===');
+      console.log('User data:', userData);
+      
       const { data, error } = await supabase
         .from('participations')
         .insert({
@@ -171,8 +218,15 @@ const Campaign = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating participation:', error);
+        throw error;
+      }
+      
+      console.log('=== PARTICIPATION CREATED ===');
+      console.log('New participation:', data);
       return data;
+      
     } catch (error) {
       console.error('Error creating participation:', error);
       toast({
@@ -185,9 +239,17 @@ const Campaign = () => {
   };
 
   const handlePrizeWon = async (prize: any) => {
-    if (!currentParticipation || hasAlreadySpun) return;
+    if (!currentParticipation || hasAlreadySpun) {
+      console.log('=== CANNOT HANDLE PRIZE ===');
+      console.log('Current participation:', currentParticipation);
+      console.log('Has already spun:', hasAlreadySpun);
+      return;
+    }
 
-    console.log('Prize won:', { prizeName: prize.name, couponCode: prize.couponCode, participationId: currentParticipation.id });
+    console.log('=== HANDLING PRIZE WON ===');
+    console.log('Prize won:', prize);
+    console.log('Participation ID:', currentParticipation.id);
+    
     setIsSpinning(false);
 
     // Calcular data de expiração do prêmio
@@ -196,18 +258,29 @@ const Campaign = () => {
     setPrizeExpiryDate(expiryDate);
 
     try {
-      const { error } = await supabase
+      console.log('=== UPDATING PARTICIPATION WITH PRIZE ===');
+      console.log('Updating participation:', currentParticipation.id);
+      console.log('Prize name:', prize.name);
+      console.log('Coupon code:', prize.couponCode);
+      
+      const { data: updatedData, error } = await supabase
         .from('participations')
         .update({
           has_spun: true,
           prize_won: prize.name,
           coupon_code: prize.couponCode || null
         })
-        .eq('id', currentParticipation.id);
+        .eq('id', currentParticipation.id)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating participation:', error);
+        throw error;
+      }
 
-      console.log('Participation updated successfully');
+      console.log('=== PARTICIPATION UPDATED SUCCESSFULLY ===');
+      console.log('Updated data:', updatedData);
       
       // Atualizar o estado local
       setCurrentParticipation({
@@ -221,11 +294,17 @@ const Campaign = () => {
       setWonCoupon(prize.couponCode || '');
       setHasAlreadySpun(true);
       setShowResult(true);
+      
+      toast({
+        title: 'Prêmio registrado!',
+        description: `Você ganhou: ${prize.name}`,
+      });
+      
     } catch (error) {
-      console.error('Error updating participation:', error);
+      console.error('Error updating participation with prize:', error);
       toast({
         title: 'Erro ao salvar resultado',
-        description: 'O resultado foi registrado, mas houve um problema ao salvar',
+        description: 'Houve um problema ao salvar seu prêmio. Entre em contato conosco.',
         variant: 'destructive',
       });
     }
@@ -236,14 +315,20 @@ const Campaign = () => {
     setIsLoading(true);
 
     const data = Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement));
+    console.log('=== FORM SUBMITTED ===');
+    console.log('Form data:', data);
+    
     setFormData(data);
 
     const participation = await createParticipation(data);
 
     if (participation) {
+      console.log('=== PARTICIPATION SUCCESSFUL ===');
       setCurrentParticipation(participation);
       setShowDataForm(false);
       setShowWheel(true);
+    } else {
+      console.log('=== PARTICIPATION FAILED ===');
     }
 
     setIsLoading(false);
@@ -302,17 +387,16 @@ const Campaign = () => {
   };
 
   const handleGoToCampaign = () => {
+    // Resetar todos os estados para nova participação
     setShowResult(false);
-    // Se a pessoa já girou, voltar para o formulário de dados
-    if (hasAlreadySpun) {
-      setShowWheel(false);
-      setShowDataForm(true);
-      setHasAlreadySpun(false);
-      setCurrentParticipation(null);
-      setWonPrize('');
-      setWonCoupon('');
-      setPrizeExpiryDate(null);
-    }
+    setShowWheel(false);
+    setShowDataForm(true);
+    setHasAlreadySpun(false);
+    setCurrentParticipation(null);
+    setWonPrize('');
+    setWonCoupon('');
+    setPrizeExpiryDate(null);
+    setFormData({});
   };
 
   const renderResultPopup = () => (
@@ -376,7 +460,7 @@ const Campaign = () => {
                 variant="outline"
                 className="w-full border-gray-200 hover:bg-gray-50"
               >
-                {hasAlreadySpun ? 'Nova Participação' : 'Voltar para a Campanha'}
+                Nova Participação
               </Button>
             </div>
           </div>
@@ -387,7 +471,7 @@ const Campaign = () => {
 
   const renderWheel = () => (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <div className="container mx-auto max-w-4xl px-4 py-6">
+      <div className="container mx-auto max-w-6xl px-4 py-6">
         {/* Campaign Title */}
         <div className="text-center mb-6">
           <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
@@ -396,20 +480,20 @@ const Campaign = () => {
           <p className="text-gray-600 text-sm">Gire a roda e ganhe prêmios incríveis!</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Lado esquerdo - Informações em acordeão */}
-          <div className="lg:col-span-1 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Lado esquerdo - Informações em acordeão (menor espaço) */}
+          <div className="lg:col-span-1">
             {(campaign.description || campaign.rules || campaign.prize_description) && (
-              <Accordion type="single" collapsible className="space-y-3">
+              <Accordion type="single" collapsible className="space-y-2">
                 {campaign.description && (
                   <AccordionItem value="about" className="border rounded-lg bg-white/80 backdrop-blur-sm shadow-sm">
-                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                      <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
-                        <Gift className="w-4 h-4" />
-                        Sobre a Campanha
+                    <AccordionTrigger className="px-3 py-2 hover:no-underline text-xs">
+                      <div className="flex items-center gap-1 text-xs font-medium text-blue-600">
+                        <Gift className="w-3 h-3" />
+                        Sobre
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
+                    <AccordionContent className="px-3 pb-3">
                       <p className="text-gray-600 text-xs leading-relaxed">{campaign.description}</p>
                     </AccordionContent>
                   </AccordionItem>
@@ -417,13 +501,13 @@ const Campaign = () => {
                 
                 {campaign.rules && (
                   <AccordionItem value="rules" className="border rounded-lg bg-white/80 backdrop-blur-sm shadow-sm">
-                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                      <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
-                        <Trophy className="w-4 h-4" />
+                    <AccordionTrigger className="px-3 py-2 hover:no-underline text-xs">
+                      <div className="flex items-center gap-1 text-xs font-medium text-blue-600">
+                        <Trophy className="w-3 h-3" />
                         Regras
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
+                    <AccordionContent className="px-3 pb-3">
                       <div className="text-gray-600 text-xs leading-relaxed whitespace-pre-line">{campaign.rules}</div>
                     </AccordionContent>
                   </AccordionItem>
@@ -431,13 +515,13 @@ const Campaign = () => {
                 
                 {campaign.prize_description && (
                   <AccordionItem value="prizes" className="border rounded-lg bg-white/80 backdrop-blur-sm shadow-sm">
-                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                      <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
-                        <Calendar className="w-4 h-4" />
-                        Descrição dos Prêmios
+                    <AccordionTrigger className="px-3 py-2 hover:no-underline text-xs">
+                      <div className="flex items-center gap-1 text-xs font-medium text-blue-600">
+                        <Calendar className="w-3 h-3" />
+                        Prêmios
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
+                    <AccordionContent className="px-3 pb-3">
                       <p className="text-gray-600 text-xs leading-relaxed">{campaign.prize_description}</p>
                     </AccordionContent>
                   </AccordionItem>
@@ -446,9 +530,9 @@ const Campaign = () => {
             )}
           </div>
 
-          {/* Lado direito - Roda */}
-          <div className="lg:col-span-2 flex justify-center items-start">
-            <Card className="shadow-xl p-4 md:p-6 border-0 bg-white/90 backdrop-blur-sm w-full max-w-lg">
+          {/* Lado direito - Roda (maior espaço) */}
+          <div className="lg:col-span-3 flex justify-center items-start">
+            <Card className="shadow-xl p-6 border-0 bg-white/90 backdrop-blur-sm w-full max-w-2xl">
               <div className="flex flex-col items-center">
                 {hasAlreadySpun && (
                   <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg w-full">
@@ -473,10 +557,10 @@ const Campaign = () => {
                 </div>
                 
                 {hasAlreadySpun && (
-                  <div className="mt-4 w-full">
+                  <div className="mt-6 w-full">
                     <Button
                       onClick={() => setShowResult(true)}
-                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 h-12"
                     >
                       Ver Meu Prêmio
                     </Button>
