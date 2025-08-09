@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -124,20 +123,40 @@ const Campaign = () => {
     
     // Verificar limite de participações por email
     if (campaign.max_uses_per_email && campaign.max_uses_per_email > 0) {
-      const { count } = await supabase
+      const { data: existingParticipations, error: countError } = await supabase
         .from('participations')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
         .eq('campaign_id', campaign.id)
         .contains('participant_data', { email });
 
-      if (count && count >= campaign.max_uses_per_email) {
-        toast({
-          title: 'Limite atingido',
-          description: `Você já atingiu o limite de ${campaign.max_uses_per_email} participação(ões) por email.`,
-          variant: 'destructive',
-        });
-        setHasAlreadySpun(true);
+      if (countError) {
+        console.error('Error checking participation count:', countError);
         return null;
+      }
+
+      if (existingParticipations && existingParticipations.length >= campaign.max_uses_per_email) {
+        // Verificar se já girou a roda
+        const hasSpunParticipation = existingParticipations.find(p => p.has_spun === true);
+        if (hasSpunParticipation) {
+          setCurrentParticipation(hasSpunParticipation);
+          setHasAlreadySpun(true);
+          setWonPrize(hasSpunParticipation.prize_won || 'Tente Novamente');
+          setWonCoupon(hasSpunParticipation.coupon_code || '');
+          
+          // Calcular data de expiração
+          const expiryDays = campaign?.prize_expiry_days || 30;
+          const participationDate = new Date(hasSpunParticipation.created_at);
+          const expiryDate = addDays(participationDate, expiryDays);
+          setPrizeExpiryDate(expiryDate);
+          
+          setShowResult(true);
+          return null;
+        }
+        
+        // Se não girou ainda, usar a participação existente
+        const existingParticipation = existingParticipations[0];
+        setCurrentParticipation(existingParticipation);
+        return existingParticipation;
       }
     }
 
@@ -284,7 +303,16 @@ const Campaign = () => {
 
   const handleGoToCampaign = () => {
     setShowResult(false);
-    // A pessoa não conseguirá girar novamente pois hasAlreadySpun = true
+    // Se a pessoa já girou, voltar para o formulário de dados
+    if (hasAlreadySpun) {
+      setShowWheel(false);
+      setShowDataForm(true);
+      setHasAlreadySpun(false);
+      setCurrentParticipation(null);
+      setWonPrize('');
+      setWonCoupon('');
+      setPrizeExpiryDate(null);
+    }
   };
 
   const renderResultPopup = () => (
@@ -348,7 +376,7 @@ const Campaign = () => {
                 variant="outline"
                 className="w-full border-gray-200 hover:bg-gray-50"
               >
-                Voltar para a Campanha
+                {hasAlreadySpun ? 'Nova Participação' : 'Voltar para a Campanha'}
               </Button>
             </div>
           </div>
@@ -443,6 +471,17 @@ const Campaign = () => {
                     wheelColor={campaign.wheel_color || '#3B82F6'}
                   />
                 </div>
+                
+                {hasAlreadySpun && (
+                  <div className="mt-4 w-full">
+                    <Button
+                      onClick={() => setShowResult(true)}
+                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                    >
+                      Ver Meu Prêmio
+                    </Button>
+                  </div>
+                )}
               </div>
             </Card>
           </div>
