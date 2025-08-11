@@ -254,7 +254,7 @@ const Campaign = () => {
       const expiryDate = addDays(saoPauloNow, expiryDays);
       setPrizeExpiryDate(expiryDate);
 
-      // Preparar dados para atualização - REMOVENDO updated_at
+      // Preparar dados para atualização
       const updateData = {
         has_spun: true,
         prize_won: prize.name || 'Tente Novamente',
@@ -264,16 +264,22 @@ const Campaign = () => {
       console.log('Atualizando participação ID:', currentParticipation.id);
       console.log('Dados para atualização:', updateData);
       
+      // CORREÇÃO: Usar .select().maybeSingle() em vez de .single()
       const { data: updatedParticipation, error: updateError } = await supabase
         .from('participations')
         .update(updateData)
         .eq('id', currentParticipation.id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (updateError) {
         console.error('Erro na atualização:', updateError);
         throw new Error(`Erro ao salvar: ${updateError.message}`);
+      }
+
+      if (!updatedParticipation) {
+        console.error('Nenhuma participação foi atualizada');
+        throw new Error('Não foi possível atualizar a participação');
       }
 
       console.log('=== PRÊMIO SALVO COM SUCESSO ===');
