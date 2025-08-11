@@ -109,19 +109,39 @@ const Campaign = () => {
           .from('participations')
           .select('*')
           .eq('campaign_id', campaign.id)
-          .or(`participant_data->>email.ilike.${email},participant_data->>Email.ilike.${email}`);
-
-        console.log('Participações existentes encontradas:', existingParticipations?.length || 0);
+          .ilike('participant_data->>email', email);
 
         if (countError) {
           console.error('Erro ao verificar participações:', countError);
-          throw new Error('Erro ao verificar participações anteriores');
         }
 
-        if (existingParticipations && existingParticipations.length > 0) {
+        // Verificar também com Email maiúsculo
+        const { data: existingParticipations2, error: countError2 } = await supabase
+          .from('participations')
+          .select('*')
+          .eq('campaign_id', campaign.id)
+          .ilike('participant_data->>Email', email);
+
+        if (countError2) {
+          console.error('Erro ao verificar participações 2:', countError2);
+        }
+
+        const allExistingParticipations = [
+          ...(existingParticipations || []),
+          ...(existingParticipations2 || [])
+        ];
+
+        // Remover duplicatas por ID
+        const uniqueParticipations = allExistingParticipations.filter((item, index, self) =>
+          index === self.findIndex(t => t.id === item.id)
+        );
+
+        console.log('Participações existentes encontradas:', uniqueParticipations.length);
+
+        if (uniqueParticipations && uniqueParticipations.length > 0) {
           console.log('=== EMAIL JÁ PARTICIPOU - VERIFICANDO STATUS ===');
           
-          const lastParticipation = existingParticipations[existingParticipations.length - 1];
+          const lastParticipation = uniqueParticipations[uniqueParticipations.length - 1];
           console.log('Última participação:', lastParticipation);
           
           // Se já girou, mostrar resultado anterior
@@ -234,12 +254,11 @@ const Campaign = () => {
       const expiryDate = addDays(saoPauloNow, expiryDays);
       setPrizeExpiryDate(expiryDate);
 
-      // Preparar dados para atualização
+      // Preparar dados para atualização - REMOVENDO updated_at
       const updateData = {
         has_spun: true,
         prize_won: prize.name || 'Tente Novamente',
-        coupon_code: prize.couponCode || null,
-        updated_at: saoPauloNow.toISOString()
+        coupon_code: prize.couponCode || null
       };
       
       console.log('Atualizando participação ID:', currentParticipation.id);
