@@ -99,6 +99,7 @@ const Campaign = () => {
     const email = userData.email || userData.Email;
     console.log('=== CRIANDO PARTICIPAÇÃO ===');
     console.log('Campaign ID:', campaign.id);
+    console.log('Campaign Status:', campaign.status);
     console.log('Email:', email);
     console.log('Limite por email:', campaign.max_uses_per_email);
     
@@ -189,31 +190,40 @@ const Campaign = () => {
     // Criar nova participação
     try {
       console.log('=== CRIANDO NOVA PARTICIPAÇÃO ===');
-      const saoPauloTime = toZonedTime(new Date(), 'America/Sao_Paulo');
+      console.log('Dados do usuário para inserção:', userData);
+      
+      // CORREÇÃO: Remover created_at manual - deixar o banco usar o padrão
+      const insertData = {
+        campaign_id: campaign.id,
+        participant_data: userData,
+        has_spun: false
+      };
+      
+      console.log('Dados para inserção:', insertData);
       
       const { data: newParticipation, error: insertError } = await supabase
         .from('participations')
-        .insert({
-          campaign_id: campaign.id,
-          participant_data: userData,
-          has_spun: false,
-          created_at: saoPauloTime.toISOString()
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (insertError) {
-        console.error('Erro ao inserir participação:', insertError);
-        throw new Error(insertError.message);
+        console.error('=== ERRO DETALHADO DO INSERT ===');
+        console.error('Código do erro:', insertError.code);
+        console.error('Mensagem do erro:', insertError.message);
+        console.error('Detalhes do erro:', insertError.details);
+        console.error('Hint do erro:', insertError.hint);
+        throw new Error(`Erro ao inserir: ${insertError.message}`);
       }
       
-      console.log('=== PARTICIPAÇÃO CRIADA ===');
+      console.log('=== PARTICIPAÇÃO CRIADA COM SUCESSO ===');
       console.log('Nova participação:', newParticipation);
       
       return newParticipation;
       
     } catch (error: any) {
-      console.error('Erro ao criar participação:', error);
+      console.error('=== ERRO AO CRIAR PARTICIPAÇÃO ===');
+      console.error('Erro completo:', error);
       toast({
         title: 'Erro ao registrar participação',
         description: error.message || 'Não foi possível registrar sua participação',
