@@ -22,6 +22,7 @@ interface CampaignData {
   collect_data_before?: boolean;
   thank_you_message?: string;
   wheel_color?: string;
+  status?: string;
   campaign_prizes: {
     id: string;
     name: string;
