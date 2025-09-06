@@ -180,6 +180,18 @@ const ParticipantsModal = ({
                   const couponCode = participant.coupon_code;
                   const couponUsed = participant.coupon_used === true;
                   
+                  // Debug logs para investigar o problema
+                  console.log('🔍 Debug participante', index, {
+                    has_spun: participant.has_spun,
+                    hasSpun,
+                    prize_won: participant.prize_won,
+                    prizeWon,
+                    coupon_code: participant.coupon_code,
+                    couponCode,
+                    participant_data: participant.participant_data,
+                    fullParticipant: participant
+                  });
+                  
                   const participationDate = participant.timestamp || participant.created_at || participant.createdAt;
                   const dataFormatada = formatInTimeZone(
                     new Date(participationDate),
@@ -194,15 +206,25 @@ const ParticipantsModal = ({
                       <TableCell>{email}</TableCell>
                       <TableCell>{telefone}</TableCell>
                       <TableCell>
-                        {hasSpun ? (
-                          prizeWon && prizeWon !== 'Tente Novamente' ? (
-                            <Badge variant="default">{prizeWon}</Badge>
-                          ) : (
-                            <Badge variant="secondary">Tente Novamente</Badge>
-                          )
-                        ) : (
-                          <Badge variant="secondary">Não girou</Badge>
-                        )}
+                        {(() => {
+                          console.log('🎯 Lógica de exibição:', {
+                            hasSpun,
+                            prizeWon,
+                            condition1: hasSpun,
+                            condition2: prizeWon && prizeWon !== 'Tente Novamente',
+                            willShowPrize: hasSpun && prizeWon && prizeWon !== 'Tente Novamente'
+                          });
+                          
+                          if (hasSpun) {
+                            if (prizeWon && prizeWon !== 'Tente Novamente') {
+                              return <Badge variant="default">{prizeWon}</Badge>;
+                            } else {
+                              return <Badge variant="secondary">Tente Novamente</Badge>;
+                            }
+                          } else {
+                            return <Badge variant="secondary">Não girou</Badge>;
+                          }
+                        })()}
                       </TableCell>
                       <TableCell>{couponCode || 'N/A'}</TableCell>
                       <TableCell>
