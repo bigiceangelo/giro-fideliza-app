@@ -195,7 +195,7 @@ const ParticipantsModal = ({
                       <TableCell>{telefone}</TableCell>
                       <TableCell>
                         {hasSpun ? (
-                          prizeWon ? (
+                          prizeWon && prizeWon !== 'Tente Novamente' ? (
                             <Badge variant="default">{prizeWon}</Badge>
                           ) : (
                             <Badge variant="secondary">Tente Novamente</Badge>
